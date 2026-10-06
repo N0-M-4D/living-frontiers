@@ -46,15 +46,21 @@
   function emit(state, message, source) { state.events.push({ time: state.time, message, visibleToPlayer: !source || !state.fog || source.side === 'blue' || source.owner === 'blue' || Fog.visible(state, source.x, source.y) }); if (state.events.length > 8) state.events.shift(); }
   const routeFor = (state, from, to) => (state.map?.route || route)(from, to);
   const terrainFor = (state, x, y) => (state.map?.terrain || terrain)(x, y);
-  function command(state, id, order, destination) {
+  function command(state, id, order, destination, options = {}) {
     const u = state.units.find(u => u.id === id && u.side === 'blue' && u.hp > 0);
     if (!u || state.winner === 'red') return false;
     if (order === 'attack' && !state.units.some(e => e.id === destination && e.side !== u.side && e.hp > 0)) return false;
-    const repairSites=state.buildings?.filter(b=>b.owner==='blue'&&b.type==='supply'&&b.hp>0&&!b.remaining&&state.regions.find(r=>r.id===state.map.regionAt(b.x,b.y)?.id)?.supplied)||[];
-    const repairTarget=[state.depot,...repairSites].reduce((a,b)=>distance(u,a)<distance(u,b)?a:b);
+    const queue=Boolean(options.queue)&&['move','advance'].includes(order);
+    const waiting=u.commandQueue||[];
+    if(queue&&waiting.length>=32)return false;
+    const origin=queue?(waiting.at(-1)?.destination||u.path.at(-1)||u):u;
+    const repairSites=order==='repair'?(state.buildings?.filter(b=>b.owner==='blue'&&b.type==='supply'&&b.hp>0&&!b.remaining&&state.regions.find(r=>r.id===state.map.regionAt(b.x,b.y)?.id)?.supplied)||[]):[];
+    const repairTarget=order==='repair'?[state.depot,...repairSites].reduce((a,b)=>distance(u,a)<distance(u,b)?a:b):null;
     const target = order === 'repair' ? repairTarget : order === 'attack' ? state.units.find(e => e.id === destination) : destination;
-    const planned = order === 'hold' ? [] : target ? routeFor(state, u, target) : [];
+    const planned = order === 'hold' ? [] : target ? routeFor(state, origin, target) : [];
     if (order !== 'hold' && !planned.length) return false;
+    if(queue&&(u.path.length||waiting.length)){u.commandQueue=[...waiting,{order,destination:{x:destination.x,y:destination.y}}];emit(state,u.name+': waypoint queued.',u);return true;}
+    if(!queue){u.commandQueue=[];delete u.blockedQueueRevision;}
     u.order = order; u.targetId = null;
     if (order === 'hold') { u.path = []; u.velocity=0; u.status = 'Holding position'; }
     else if (order === 'repair') { u.repairTarget={x:repairTarget.x,y:repairTarget.y};u.path = planned; u.status = 'Returning to depot'; }
@@ -64,6 +70,14 @@
       u.targetId = enemy.id; u.path = planned; u.status = 'Advancing on defenders';
     } else { u.order = order === 'move' ? 'move' : 'advance'; u.path = planned; u.status = order === 'move' ? 'Moving · disengaging from combat' : 'Advancing'; }
     emit(state, `${u.name}: ${u.status.toLowerCase()}.`, u); return true;
+  }
+  function formationPlan(units,destination,lineEnd){
+    if(!units.length)return [];
+    let slots;
+    if(lineEnd&&units.length>1){slots=units.map((u,i)=>({x:destination.x+(lineEnd.x-destination.x)*i/(units.length-1),y:destination.y+(lineEnd.y-destination.y)*i/(units.length-1)}));}
+    else {const centre={x:units.reduce((n,u)=>n+u.x,0)/units.length,y:units.reduce((n,u)=>n+u.y,0)/units.length},extent=Math.max(1,...units.map(u=>distance(u,centre))),compression=Math.min(1,160/extent);slots=units.map(u=>({x:destination.x+(u.x-centre.x)*compression,y:destination.y+(u.y-centre.y)*compression}));
+      if(slots.some((p,i)=>slots.some((q,j)=>i!==j&&distance(p,q)<75))){const columns=Math.ceil(Math.sqrt(units.length)),rows=Math.ceil(units.length/columns);slots=units.map((u,i)=>({x:destination.x+(i%columns-(columns-1)/2)*85,y:destination.y+(Math.floor(i/columns)-(rows-1)/2)*85}));}}
+    return units.map(u=>{let best=0;for(let i=1;i<slots.length;i++)if(distance(u,slots[i])<distance(u,slots[best]))best=i;return {id:u.id,goal:slots.splice(best,1)[0]};});
   }
   function closestEnemy(state, u, maxDistance = Infinity) {
     let target = null, best = maxDistance;
@@ -135,6 +149,10 @@
           else { u.path = []; u.order = 'hold'; }
         }
       }
+      if(u.side==='blue'&&!u.path.length&&u.commandQueue?.length){
+        const revision=state.map?.revision?.()??'static';
+        if(u.blockedQueueRevision!==revision){const next=u.commandQueue[0],planned=routeFor(state,u,next.destination);if(planned.length){u.path=planned;u.order=next.order;u.targetId=null;u.commandQueue.shift();delete u.blockedQueueRevision;}else u.blockedQueueRevision=revision;}
+      }
       const enemy = closestEnemy(state, u, u.range);
       const retreating = u.order === 'repair' || u.order === 'withdraw';
       const relocating = u.order === 'move' && u.path.length > 0;
@@ -143,7 +161,7 @@
         u.status = 'Engaging ' + enemy.name; u.turret = Math.atan2(enemy.y - u.y, enemy.x - u.x);
         if (u.cooldown <= 0) { fire(state, u, enemy); u.cooldown = u.type==='artillery'?5:u.type === 'tank' ? 1.65 : 1.1; }
       } else if (u.path.length) { move(state, u, dt); u.turret = u.angle; u.status = retreating ? 'Withdrawing' : relocating ? 'Moving · disengaging from combat' : 'Advancing'; }
-      else { u.velocity=0;u.status = u.order === 'repair' ? 'Refitting at depot' : 'Holding position'; }
+      else { u.velocity=0;u.status = u.commandQueue?.length ? 'Queued route blocked � awaiting crossing' : u.order === 'repair' ? 'Refitting at depot' : 'Holding position'; }
       if (u.order === 'repair' && distance(u, u.repairTarget||state.depot) < 45 && u.hp < u.maxHp) {
         const healing = Math.min(7 * dt, u.maxHp - u.hp, state.materiel / .6);
         u.hp += healing; state.materiel -= healing * .6;
@@ -172,5 +190,5 @@
     if (!state.facilities) state.capture = state.factory.capture;
     if (!state.regional && !state.units.some(u => u.side === 'blue' && u.hp > 0)) { state.winner = 'red'; emit(state, 'Your assault force has been lost. Restart to try a different approach.'); }
   }
-  return { WORLD, formation, create, step, command, bombard, fireMission, repairFactory, height, terrain, route, distance, clamp, trenchCover, trenchAt };
+  return { WORLD, formationPlan, formation, create, step, command, bombard, fireMission, repairFactory, height, terrain, route, distance, clamp, trenchCover, trenchAt };
 });

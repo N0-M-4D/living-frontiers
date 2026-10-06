@@ -64,6 +64,7 @@ node campaign.test.cjs
 node territory.test.cjs
 node fog.test.cjs
 node projection.test.cjs
+node orders.test.cjs
 node --check game.js
 node --check world.js
 node --check campaign.js
@@ -91,3 +92,11 @@ Fog reveals opponents within 1,000 world units of living companies, 650 of compl
 Terrain picking now uses a bracketed height intersection rather than unstable fixed-point iteration. The placement preview follows a stationary pointer as the camera moves. Infantry are centred on their logical destination, and group orders mark the assigned formation slots.
 
 The five-part audit also removed unused legacy capture scans, reused blocked-bridge lists with immediate damage/repair invalidation, cached grass by world chunk, cached static tree geometry and building sprites, bounded marker collision checks with screen bins, and reused route geometry. Fog has a cached 1600 x 900 overlay (about 5.8 MB before browser copies); grass retains at most 512 chunks and building sprites at most 192 entries. Paused scenes redraw on UI/camera/input updates instead of every animation frame. Sustained full-match performance remains a separate playtest gate.
+
+### Army control
+
+Right-drag on the ground to spread selected companies along a line. Green/red rings preview reachable/unreachable formation slots; release confirms reachable slots and reports the accepted count. M or A also shows destination slots before clicking. Shift + right-click (or Shift + left-click in M/A mode) queues movement/attack-move waypoints; an ordinary valid order, Hold or Return & repair replaces the queue. Direct enemy attacks replace existing waypoints. Each company holds up to 32 pending waypoints, retained through saves. If a queued route is blocked by a destroyed crossing, it waits and replans when crossing availability changes. Invalid orders preserve earlier orders.
+
+Fog geometry is merged into row strips, retaining sampled terrain edges, and cached world images are cropped to the viewport before submission. Unexplored scenery uses the overview terrain image instead of expensive close-up geometry; explored terrain keeps its detail. The active-battle profile identified rendering as the dominant cost. Browser CPU samples and target-machine gameplay acceptance remain distinct; no fixed FPS is promised.
+
+Verification: 57 automated checks pass, including eight army-control checks. Headless Edge input checks exercised right-drag slots, Shift queuing and Hold cancellation without page errors. Two alternating active-battle rendering samples at 1440 x 1000 measured old/new medians of 10.1/9.5 ms and 14.6/10.2 ms; old/new p95 values were 32.4/28.3 ms and 169.8/32.9 ms. Shared machine load makes these short CPU samples variable; they do not establish sustained gameplay FPS.
