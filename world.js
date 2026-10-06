@@ -1,0 +1,26 @@
+(function(root,factory){const api=factory(typeof module==='object'&&module.exports?require('./geography.js'):root.Geography);if(typeof module==='object'&&module.exports)module.exports=api;else root.World=api;})(globalThis,function(B){
+ 'use strict';
+ const SCALE=Math.sqrt(10),small=p=>({x:p.x/SCALE,y:p.y/SCALE}),large=p=>({x:p.x*SCALE,y:p.y*SCALE});
+ const coast=B.coast.map(([x,y])=>[x*SCALE,y*SCALE]);
+ const names=['Ashford','Dunmere','Fox Hollow','Cedar Reach','Stonepass','Northgate','Oldfield','Kingsbridge','Redmarsh','Highmere','Port Alder','Windfall','Ridgeway','Copperbank','Blackwater','Mossvale','Saltwick','Whitecliff','Greenford','Southport','Longmoor','Grey Ridge','Ironwood','Eastmere'];
+ const sites=B.regions.map(r=>({...r,x:r.x,y:r.y}));
+ const candidates=[];for(let y=420;y<2850;y+=350)for(let x=650;x<4100;x+=350)if(B.walkable(x,y))candidates.push({x,y});
+ for(const name of names){let best=null,score=-1;for(const p of candidates){const d=Math.min(...sites.map(r=>Math.hypot(p.x-r.x,p.y-r.y)));if(d>score){score=d;best=p;}}const i=sites.length;sites.push({id:name.toLowerCase().replaceAll(' ','-'),name,...best,owner:'neutral',facility:['Oil refinery','Arsenal','Recruitment centre','Supply exchange'][i%4],production:.8+(i%4)*.25,reward:40+(i%4)*15,biome:B.terrain(best.x,best.y)==='forest'?'Woodland frontier':B.terrain(best.x,best.y)==='hill'?'Highland stronghold':i%4===0?'Oil basin':i%3===0?'Agricultural province':'Market town'});}
+ const home=sites[0];sites.filter(r=>r.id!=='westhaven'&&r.owner==='neutral').sort((a,b)=>Math.hypot(a.x-home.x,a.y-home.y)-Math.hypot(b.x-home.x,b.y-home.y)).slice(0,2).forEach(r=>r.owner='blue');sites.filter(r=>r.owner==='neutral').sort((a,b)=>b.x-a.x).slice(0,5).forEach(r=>r.owner='red');
+ function clip(poly,nx,ny,bound){const out=[];for(let i=0;i<poly.length;i++){const a=poly[i],b=poly[(i+1)%poly.length],da=a[0]*nx+a[1]*ny-bound,db=b[0]*nx+b[1]*ny-bound;if(da<=.001)out.push(a);if((da<0)!==(db<0)){const t=da/(da-db);out.push([a[0]+(b[0]-a[0])*t,a[1]+(b[1]-a[1])*t]);}}return out;}
+ const regions=sites.map(r=>{let polygon=B.coast;for(const b of sites)if(b!==r)polygon=clip(polygon,b.x-r.x,b.y-r.y,(b.x*b.x+b.y*b.y-r.x*r.x-r.y*r.y)/2);return {...r,...large(r),polygon:polygon.map(([x,y])=>[x*SCALE,y*SCALE]),neighbours:[]};});
+ const links=[];for(let i=0;i<regions.length;i++)for(let j=i+1;j<regions.length;j++){if(regions[i].polygon.filter(p=>regions[j].polygon.some(q=>Math.hypot(p[0]-q[0],p[1]-q[1])<.1)).length>=2){regions[i].neighbours.push(regions[j].id);regions[j].neighbours.push(regions[i].id);links.push([i,j]);}}
+ const regionAt=(x,y)=>regions.find(r=>B.contains(r.polygon,x,y));
+ const bridges=B.bridges.map(y=>y*SCALE),riverX=y=>B.riverX(y/SCALE)*SCALE;
+ const baseRoute=(a,b)=>B.route(small(a),small(b)).map(large);
+ const roads=links.map(([a,b])=>[regions[a],...baseRoute(regions[a],regions[b])]);
+ const roadLinks=links.map(([a,b],i)=>{const crossings=new Set();for(let k=1;k<roads[i].length;k++){const start=roads[i][k-1],end=roads[i][k],n=Math.max(1,Math.ceil(Math.hypot(end.x-start.x,end.y-start.y)/30));for(let j=0;j<=n;j++){const x=start.x+(end.x-start.x)*j/n,y=start.y+(end.y-start.y)*j/n;if(Math.abs(x-riverX(y))<45*SCALE)bridges.forEach((by,index)=>{if(Math.abs(y-by)<48*SCALE)crossings.add(index);});}}return {from:regions[a].id,to:regions[b].id,points:roads[i],bridges:[...crossings]};});
+ const height=(x,y)=>B.height(x/SCALE,y/SCALE)*SCALE;
+ const terrain=(x,y)=>B.terrain(x/SCALE,y/SCALE),land=(x,y)=>B.land(x/SCALE,y/SCALE);
+ function walkable(x,y,blocked=[]){if(!B.walkable(x/SCALE,y/SCALE))return false;return !blocked.some(i=>Math.abs(y-bridges[i])<48*SCALE&&Math.abs(x-riverX(y))<45*SCALE);}
+ function visible(a,b,blocked=[]){if(!B.visible(small(a),small(b)))return false;if(!blocked.length)return true;const n=Math.ceil(Math.hypot(a.x-b.x,a.y-b.y)/40);for(let i=0;i<=n;i++)if(!walkable(a.x+(b.x-a.x)*i/Math.max(1,n),a.y+(b.y-a.y)*i/Math.max(1,n),blocked))return false;return true;}
+ function route(a,b,blocked=[]){if(!walkable(b.x,b.y,blocked))return [];const p=baseRoute(a,b),valid=points=>points.length&&points.every((v,i)=>visible(i?points[i-1]:a,v,blocked));if(valid(p))return p;if(!blocked.length)return [];let best=[],length=Infinity;for(let i=0;i<bridges.length;i++){if(blocked.includes(i))continue;const y=bridges[i],x=riverX(y),direction=a.x<riverX(a.y)?1:-1,near={x:x-direction*110*SCALE,y},far={x:x+direction*110*SCALE,y};const candidate=[...baseRoute(a,near),far,...baseRoute(far,b)];if(!valid(candidate))continue;let d=0,prev=a;for(const v of candidate){d+=Math.hypot(v.x-prev.x,v.y-prev.y);prev=v;}if(d<length){length=d;best=candidate;}}return best;}
+ function roadDistance(p){let best=Infinity;for(const road of roads)for(let i=1;i<road.length;i++){const a=road[i-1],b=road[i],dx=b.x-a.x,dy=b.y-a.y,t=Math.max(0,Math.min(1,((p.x-a.x)*dx+(p.y-a.y)*dy)/(dx*dx+dy*dy||1)));best=Math.min(best,Math.hypot(p.x-a.x-t*dx,p.y-a.y-t*dy));}return best;}
+ const bounds={minX:240*SCALE,minY:160*SCALE,maxX:4480*SCALE,maxY:3120*SCALE};
+ return {SCALE,coast,regions,regionAt,roads,roadLinks,riverX,bridges,height,terrain,land,walkable,visible,route,roadDistance,bounds,occupationCell:160,influenceRadius:720};
+});

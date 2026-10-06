@@ -1,0 +1,15 @@
+# Local editor and operating-system files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Local caches and diagnostics
+__pycache__/
+*.pyc
+*.log
+
+# Private local configuration
+.env
+.env.*
+!.env.example
