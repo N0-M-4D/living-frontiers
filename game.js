@@ -6,6 +6,7 @@
   let state=Campaign.create(),width=1000,height=720,scale=.2,offset={x:0,y:0},cameraTween=null;
   let last=0,accumulator=0,uiTime=0,fps=60,fpsFrames=0,fpsStart=0,pointer=null,cursorScreen=null,hoverWorld=null,destinationMark=null,orderMode=false;
   const C={ink:'#253f3c'};
+  const modelRenderer=FrontierModels.createRenderer();
   const ground=document.createElement('canvas');ground.width=3200;ground.height=1800;
   const g=ground.getContext('2d');
   let paintNeeded=true;
@@ -51,69 +52,35 @@
     for(let i=0;i<22000;i++){const x=(300+random()*4100)*S,y=(220+random()*2800)*S,t=G.terrain(x,y);if(t==='forest'||(t==='open'&&random()<.02)){scenery.push({x,y,size:19+random()*22,draw:'tree'});const q=project(x,y);g.fillStyle=t==='forest'?'#426747':'#698467';g.fillRect(q.x-1.5,q.y-1,3,2);}}
     g.restore();for(const o of scenery){const p=project(o.x,o.y);o.px=p.x;o.py=p.y;}scenery.sort((a,b)=>a.x+a.y-b.x-b.y);
   }
-  function box(x, y, w, d, h, angle, colors, bottom = G.height(x, y)) {
-    const cos = Math.cos(angle), sin = Math.sin(angle);
-    const points = [[-w / 2, -d / 2], [w / 2, -d / 2], [w / 2, d / 2], [-w / 2, d / 2]].map(([a, b]) => ({ x: x + a * cos - b * sin, y: y + a * sin + b * cos }));
-    const low = points.map(p => project(p.x, p.y, bottom)), high = points.map(p => project(p.x, p.y, bottom + h));
-    const sides = points.map((p, i) => ({ i, depth: p.x + p.y + points[(i + 1) % 4].x + points[(i + 1) % 4].y })).sort((a, b) => a.depth - b.depth);
-    for (const { i } of sides) { const j = (i + 1) % 4; poly(ctx, [low[i], low[j], high[j], high[i]], colors[i % 2 ? 1 : 2]); }
-    poly(ctx, high, colors[0]);
+  function tree(t){
+    const p=project(t.x,t.y),type=Math.floor(t.x+t.y)%3===0?'pine':'tree';
+    modelRenderer.draw(ctx,type,p.x,p.y,1/S,{side:'neutral',h:Math.round(t.size/4)*4,detail:scale/S>.7});
   }
-  function shadow(x, y, rx, ry) { const p = project(x + 4, y + 4); ctx.fillStyle = '#263d3226'; ctx.beginPath(); ctx.ellipse(p.x, p.y, rx/S, ry/S, 0, 0, Math.PI * 2); ctx.fill(); }
-  const treeGeometry=new WeakMap();
-  function tree(t){let shapes=treeGeometry.get(t);if(!shapes){const z=G.height(t.x,t.y),tip=project(t.x,t.y,z+t.size),left=project(t.x-7,t.y,z+5),right=project(t.x+7,t.y,z+5),back=project(t.x,t.y-7,z+5),front=project(t.x,t.y+7,z+5),base=project(t.x,t.y,z);shapes=[[tip,left,front],[tip,front,right],[tip,right,back]].map(points=>{const p=new Path2D();points.forEach((q,i)=>i?p.lineTo(q.x,q.y):p.moveTo(q.x,q.y));p.closePath();return p;});const trunk=new Path2D();trunk.rect(base.x-1/S,base.y-6/S,2/S,6/S);shapes.push(trunk);treeGeometry.set(t,shapes);}ctx.fillStyle='#65684e';ctx.fill(shapes[3]);for(let i=0;i<3;i++){ctx.fillStyle=['#55745c','#426451','#6c8867'][i];ctx.fill(shapes[i]);}}
-  function building(b) {
-    if(b.factory?.type==='trench'){const f=b.factory,z=G.height(b.x,b.y),angle=f.angle||0,rot=(x,y)=>({x:b.x+x*Math.cos(angle)-y*Math.sin(angle),y:b.y+x*Math.sin(angle)+y*Math.cos(angle)}),points=[[-110,0],[-65,0],[-65,12],[-20,12],[-20,0],[25,0],[25,-12],[70,-12],[70,0],[110,0]].map(([x,y])=>{const p=rot(x,y);return project(p.x,p.y,z);});path(ctx,points,f.hp<=0?'#887b62':'#b4a076',28/S);path(ctx,points,f.hp<=0?'#9c8d71':'#463e32',14/S);if(f.hp>0&&scale/S>.38)for(let i=-100;i<=100;i+=20){const p=rot(i,-18);box(p.x,p.y,14,7,4,angle,['#b7a681','#857758','#a59776']);}return;}
-    if(b.factory?.type==='battery'){const f=b.factory;box(b.x,b.y,90,70,5,0,['#aa9e7c','#766c50','#c1b08a']);if(f.hp<=0||f.remaining>0)return;for(let i=0;i<3;i++)vehicle({x:b.x+(i-1)*30,y:b.y,angle:f.aim||0,turret:f.aim||0,type:'artillery',side:f.owner});if(scale/S>.38)for(let i=0;i<6;i++)soldier({x:b.x-40+i*16,y:b.y+30,side:f.owner});return;}
-
-    if(scale/S<.38){box(b.x,b.y,b.w,b.d,b.factory?.hp<=0?5:b.h,0,[b.factory?.owner==='blue'?'#60878a':'#93a29a','#9caa98','#bac3a9']);return;}
-    const damaged = b.factory && b.factory.hp < 100, ruined = b.factory && b.factory.hp <= 0;
-    shadow(b.x, b.y, b.w * .85, b.d * .5);
-    const roof = b.kind === 'depot' ? '#60878a' : damaged ? '#727a70' : '#93a29a';
-    box(b.x, b.y, b.w, b.d, ruined ? 5 : b.h, 0, [roof, '#9caa98', '#bac3a9']);
-    if (ruined) {
-      for (let i = 0; i < 9; i++) box(b.x - 25 + (i % 3) * 18, b.y - 10 + Math.floor(i / 3) * 12, 7, 6, 4 + i % 3, i * .3, ['#71796d', '#565f57', '#818777']);
-      return;
-    }
-    // Roof strips, windows and loading doors are deliberate geometric placeholders.
-    for (let i = -b.w / 2 + 6; i < b.w / 2; i += 11) path(ctx, [project(b.x + i, b.y - b.d / 2, G.height(b.x, b.y) + b.h + .4), project(b.x + i, b.y + b.d / 2, G.height(b.x, b.y) + b.h + .4)], '#c0c9b4', 1);
-    for (let i = -b.w / 2 + 8; i < b.w / 2; i += 14) box(b.x + i, b.y + b.d / 2 + .2, 6, .4, 7, 0, ['#627d77', '#617b74', '#617b74'], G.height(b.x, b.y) + 8);
-    if (b.kind === 'factory') {
-      for (let i = 0; i < 2; i++) box(b.x - 15 + i * 23, b.y - 12, 6, 6, 48, 0, ['#7a8376', '#8a8d7a', '#a19d83']);
-      if (damaged) { const p = project(b.x - 2, b.y, G.height(b.x, b.y) + b.h + 1); ctx.fillStyle = '#394942'; ctx.beginPath(); ctx.ellipse(p.x, p.y, 15, 7, -.2, 0, 7); ctx.fill(); }
+  function buildingType(b){
+    const f=b.factory;
+    if(f?.type)return f.type;
+    if(f){const name=f.name||'';if(name.includes('Oil'))return 'refinery';if(name.includes('Recruit'))return 'barracks';if(name.includes('Supply'))return 'supply';return b.kind==='depot'?'hq':'industry';}
+    return b.kind==='depot'?'warehouse':'house';
+  }
+  function building(b){
+    const f=b.factory,type=buildingType(b),p=project(b.x,b.y);
+    const condition=f?.hp<=0?'ruined':f?.remaining>0?'construction':f&&f.hp<f.maxHp*.5?'damaged':'intact';
+    const fixed=['trench','battery','refinery'].includes(type);
+    modelRenderer.draw(ctx,type,p.x,p.y,1/S,{side:f?.owner||'neutral',state:condition,angle:f?.angle||0,turret:f?.aim||0,detail:scale/S>.38,
+      w:fixed?undefined:b.w,d:fixed?undefined:b.d,h:fixed?undefined:(f?.remaining>0?32:b.h)});
+    if(type==='battery'&&condition!=='ruined'&&condition!=='construction'&&scale/S>.38){
+      for(let i=0;i<6;i++)soldier({x:b.x-40+i*16,y:b.y+30,side:f.owner,angle:f.aim||0});
     }
   }
-  const buildingSprites=new Map();
-  function staticBuilding(b){
-    const detail=scale/S>=.38,key=[b.w,b.d,b.h,b.kind,detail].join(',');let sprite=buildingSprites.get(key);
-    if(!sprite){const origin=project(b.x,b.y),padding=5,left=-(b.w+b.d)*.42/S-padding,top=-b.h/S-(b.w+b.d)*.21/S-padding,w=(b.w+b.d)*.84/S+padding*2,h=b.h/S+(b.w+b.d)*.42/S+padding*2;
-      const surface=document.createElement('canvas'),density=4;surface.width=Math.ceil(w*density);surface.height=Math.ceil(h*density);const previous=ctx;ctx=surface.getContext('2d');ctx.setTransform(density,0,0,density,-(origin.x+left)*density,-(origin.y+top)*density);try{building(b);}finally{ctx=previous;}sprite={surface,left,top,w:surface.width/density,h:surface.height/density};
-      if(buildingSprites.size>=192)buildingSprites.delete(buildingSprites.keys().next().value);
-    }else buildingSprites.delete(key);
-    buildingSprites.set(key,sprite);const p=project(b.x,b.y);ctx.drawImage(sprite.surface,p.x+sprite.left,p.y+sprite.top,sprite.w,sprite.h);
+  // The shared renderer owns a byte-bounded sprite cache, including structures.
+  function staticBuilding(b){building({...b,w:Math.round(b.w/4)*4,d:Math.round(b.d/4)*4,h:Math.round(b.h/4)*4});}
+  function vehicle(v){
+    const p=project(v.x,v.y);
+    modelRenderer.draw(ctx,v.type,p.x,p.y,1/S,{side:v.side,angle:v.angle,turret:v.turret,state:v.wreck?'ruined':'intact',detail:scale/S>.7});
   }
-  function vehicle(v) {
-    const { x, y, angle, turret, type, side, wreck } = v, z = G.height(x, y);
-    shadow(x, y, type === 'tank' ? 12 : 9, 4.5);
-    const colors = wreck ? ['#555f53', '#3c4d44', '#6d7261'] : side === 'blue' ? ['#729c9f', '#396b7b', '#4f818d'] : ['#bd8b6d', '#824c43', '#a26650'];
-    const cross = (forward, lateral) => ({ x: x + Math.cos(angle) * forward - Math.sin(angle) * lateral, y: y + Math.sin(angle) * forward + Math.cos(angle) * lateral });
-    if (type === 'tank'||type==='artillery') {
-      for (const lateral of [-4.5, 4.5]) { const p = cross(0, lateral); box(p.x, p.y, 16, 2.5, 3, angle, ['#475d57', '#293f3c', '#3e5148'], z); }
-      box(x, y, 15, 8, 4.5, angle, colors, z + 2); box(x, y, 7, 6, 3.5, turret, colors, z + 6.5);
-      const p = project(x + Math.cos(turret) * (type==='artillery'?26:15), y + Math.sin(turret) * (type==='artillery'?26:15), z + 9);
-      path(ctx, [project(x, y, z + 9), p], wreck ? '#4c574d' : '#bfd0b3', 2.2/S);
-    } else {
-      for (const lateral of [-4, 4]) for (const fwd of [-4, 0, 4]) { const p = cross(fwd, lateral); box(p.x, p.y, 2.5, 1.8, 2.5, angle, ['#334b44', '#263c37', '#33483f'], z); }
-      box(x, y, 13, 7.5, 5, angle, colors, z + 1.8); const cabin = cross(3, 0); box(cabin.x, cabin.y, 3.5, 6.5, 1, angle, ['#bfd0be', '#758f88', '#8aa49a'], z + 6.8);
-    }
-    if (!wreck) { const p = cross(-4, 0); box(p.x, p.y, 2.5, 2, .3, angle, [side === 'blue' ? '#e5e8c9' : '#eccab0', '#ccc', '#ccc'], z + 7); }
-  }
-  function soldier(s) {
-    const z=G.height(s.x,s.y),p=project(s.x,s.y,z),head=project(s.x,s.y,z+4.5);
-    ctx.fillStyle='#2b493d30';ctx.beginPath();ctx.ellipse(p.x+2/S,p.y+1/S,2.2/S,1/S,0,0,7);ctx.fill();
-    path(ctx,[{x:p.x-1/S,y:p.y},{x:p.x,y:p.y-3/S},{x:p.x+1/S,y:p.y}],'#334b40',1/S);
-    path(ctx,[{x:p.x,y:p.y-2/S},head],s.side==='blue'?'#3f7480':'#986148',2.5/S);
-    ctx.fillStyle=s.side==='blue'?'#b4c1a6':'#c2ac86';ctx.beginPath();ctx.arc(head.x,head.y,1.5/S,0,7);ctx.fill();
+  function soldier(s){
+    const p=project(s.x,s.y);
+    modelRenderer.draw(ctx,'infantry',p.x,p.y,1/S,{side:s.side,angle:s.angle||0,pose:s.moving?'march':'stand',detail:scale/S>1});
   }
 
   function targetVisuals(u) {
@@ -130,7 +97,7 @@
     if (u.type === 'mech'||u.type==='infantry') for (let i = 0; i < Math.ceil((u.type==='infantry'?28:12) * u.hp / u.maxHp); i++) {
       const walking = u.moving && !reduced.matches ? Math.sin(state.time * 5 + i) * .7 : 0;
       const entrenched=Boolean(trench),facing=trench?(trench.angle||0):u.angle,back=entrenched?(i%14-6.5)*12:(u.type==='infantry'?13.5: -12)-Math.floor(i/7)*9+walking,lateral=entrenched?Math.floor(i/14)*10-5:(u.type==='infantry'?-21:18)+(i%7)*7;
-      visuals.push({x:u.x+Math.cos(facing)*back-Math.sin(facing)*lateral,y:u.y+Math.sin(facing)*back+Math.cos(facing)*lateral,side:u.side,draw:'soldier'});
+      visuals.push({x:u.x+Math.cos(facing)*back-Math.sin(facing)*lateral,y:u.y+Math.sin(facing)*back+Math.cos(facing)*lateral,side:u.side,angle:facing,moving:u.moving&&!entrenched,draw:'soldier'});
     }
     return visuals;
   }
@@ -230,10 +197,15 @@
     for(const selected of selectedUnits()){ring(selected.x-12,selected.y,Math.max(42,17/scale),'#fff0b1');if(selected.path.length)drawRoute(selected);}
     for(const slot of previewPlan())ring(slot.goal.x,slot.goal.y,Math.max(24,11/scale),state.map.walkable(slot.goal.x,slot.goal.y)?'#b9efd2':'#ed8468');
     if(destinationMark&&state.time-destinationMark.time<5){ring(destinationMark.x,destinationMark.y,Math.max(18,9/scale),'#fff0b1');for(const p of destinationMark.slots||[])ring(p.x,p.y,Math.max(8,4/scale),'#d4efc7');}
-    for(const liveBridge of state.bridges){if(!onScreen(liveBridge,100))continue;const b=visible(liveBridge)?liveBridge:{...liveBridge,hp:liveBridge.maxHp};const points=[project(b.x-65*S,b.y,3*S),project(b.x+65*S,b.y,3*S)];path(ctx,points,b.hp<=0?'#543c32':'#5e655c',12);if(b.hp>0)path(ctx,points,b.hp<b.maxHp*.5?'#9f8162':'#dbcaab',8);else{const p=project(b.x,b.y);path(ctx,[{x:p.x-5,y:p.y-5},{x:p.x+5,y:p.y+5}],'#f8ae77',2);}}
+    for(const liveBridge of state.bridges){
+      if(!onScreen(liveBridge,160))continue;
+      const b=visible(liveBridge)?liveBridge:{...liveBridge,hp:liveBridge.maxHp},p=project(b.x,b.y,3*S);
+      modelRenderer.draw(ctx,'bridge',p.x,p.y,1/S,{side:'neutral',state:b.hp<=0?'ruined':b.hp<b.maxHp*.5?'damaged':'intact',w:130*S,d:23*S,h:28*S,detail:scale/S>.38});
+    }
     for(const c of state.craters)if(visible(c)&&onScreen(c)){const p=project(c.x,c.y);ctx.fillStyle='#493c3270';ctx.beginPath();ctx.ellipse(p.x,p.y,c.size/S,c.size*.5/S,0,0,7);ctx.fill();}
     const battery=buildingTarget();if(battery?.type==='battery'&&battery.owner==='blue'&&(batteryMode||document.querySelector('.game').dataset.panel==='build')){ring(battery.x,battery.y,Campaign.BUILDINGS.battery.range,'#e8b462');if(battery.fireTarget)ring(battery.fireTarget.x,battery.fireTarget.y,Campaign.BUILDINGS.battery.radius,'#ef945f');}if(fireMode)for(const u of selectedUnits().filter(u=>u.type==='artillery'))ring(u.x,u.y,u.range,'#e8b462');
-    if(hoverWorld&&(buildMode||rallyMode||fireMode||batteryMode)){const p={...hoverWorld,angle:trenchAngle},valid=buildMode?!Campaign.placement(state,buildMode,p):state.map.walkable(p.x,p.y);ring(p.x,p.y,buildMode?70:batteryMode?240:95,valid?'#b9efd2':'#ed8468');if(buildMode==='trench'){path(ctx,[project(p.x-110*Math.cos(trenchAngle),p.y-110*Math.sin(trenchAngle)),project(p.x+110*Math.cos(trenchAngle),p.y+110*Math.sin(trenchAngle))],valid?'#587b60':'#b35740',22/S);}else if(buildMode){ctx.globalAlpha=.6;box(p.x,p.y,80,55,32,0,valid?['#c4dfbd','#5b9688','#86b9a0']:['#d39878','#a15d4d','#c4755f']);ctx.globalAlpha=1;}}
+    if(hoverWorld&&(buildMode||rallyMode||fireMode||batteryMode)){const p={...hoverWorld,angle:trenchAngle},valid=buildMode?!Campaign.placement(state,buildMode,p):state.map.walkable(p.x,p.y);ring(p.x,p.y,buildMode?70:batteryMode?240:95,valid?'#b9efd2':'#ed8468');if(buildMode){ctx.globalAlpha=.55;building({x:p.x,y:p.y,w:80,d:55,h:32,kind:'factory',factory:{type:buildMode,owner:valid?'blue':'red',hp:1,maxHp:1,remaining:0,angle:buildMode==='trench'?trenchAngle:0}});ctx.globalAlpha=1;}}
+
     const rally=buildingTarget();if(rally?.rally&&rally.owner==='blue'&&document.querySelector('.game').dataset.panel==='build'){ring(rally.rally.x,rally.rally.y,45,'#aee3d8');path(ctx,[project(rally.x,rally.y),project(rally.rally.x,rally.rally.y)],'#c9eddd',1/scale,[4/scale,4/scale]);}
     const objects=scenery.filter(o=>(scale/S>.24||o.factory)&&(o.factory?visible(o.factory):Fog.explored(state,o.x,o.y))&&onScreen(o));
     for(const b of state.buildings)if(visible(b)&&onScreen(b))objects.push({x:b.x,y:b.y,w:80,d:55,h:b.remaining>0?10:32,kind:b.type==='garage'||b.type==='supply'?'depot':'factory',factory:b,draw:'building'});

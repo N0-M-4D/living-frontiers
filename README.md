@@ -16,6 +16,8 @@ Open http://127.0.0.1:8765/ and choose a doctrine and campaign length. Refresh t
 
 An optional [interactive visual prototype](preview/visual-lab.html) explores the proposed terrain, troop silhouettes, command deck and artillery effects. It is a scripted approval scene, separate from the live campaign. See the [RTS research and twelve-domain optimisation audit](docs/visual-research.md) for references, findings and the proposed integration order.
 
+The [model yard](preview/model-yard.html) lets you inspect 21 shared troop, structure, scenery and prop models. Rotate them and compare faction colours, detail levels and supported damage states. These models are integrated into the playable game; see the [model art pass notes](docs/model-art-pass.md). Landscape composition remains the next phase.
+
 ## Commands
 
 The game uses an olive-metal and brass RTS HUD: a top resource strip, a continuous bottom command area, and a clickable minimap with troops and camera footprint. The minimap redraws at most four times per second. Click/drag it to navigate, or use arrow keys while it has keyboard focus. The minimap is hidden on narrow screens. The bottom command bar always shows troop selection and named orders. Build opens a labelled catalogue with costs and build times; Place new and Manage buildings separate construction from recruitment and repair. Region opens capture and infrastructure information. Controls ? opens the field manual. Resource labels remain visible.
@@ -80,7 +82,7 @@ Tests cover combat, continuous routes, movement/disengagement, capture persisten
 
 This is a playable local single-player MVP, not a finished or fully balanced release. The map is fixed; replay choices currently come from doctrine, campaign length and strategy. Artwork is geometric and still needs an art pass. Units navigate as formations; buildings are not individual collision obstacles. Road sabotage currently means destroying bridge crossings, not arbitrary road segments. No multiplayer, individual vehicle physics, audio mix or air force is included. Aircraft remain deferred until after the ground V1.0 milestone. Full-match balance and sustained performance on the player's machine remain playtest gates.
 
-`geography.js` is the base terrain/navigation template; `world.js` builds the enlarged country. `simulation.js` handles movement and combat, `territory.js` occupation, `campaign.js` economy/logistics/AI/saves, and `game.js` camera, rendering and interface.
+`geography.js` is the base terrain/navigation template; `world.js` builds the enlarged country. `simulation.js` handles movement and combat, `territory.js` occupation, `campaign.js` economy/logistics/AI/saves, `models.js` the shared geometric art and bounded sprite cache, and `game.js` camera, rendering and interface. Run `node models.test.cjs` for the model and cache checks.
 
 
 ### Rendering optimisation — 6 October 2026
