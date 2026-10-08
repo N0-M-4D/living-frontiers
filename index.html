@@ -50,18 +50,19 @@
   <span class="eyebrow">Living Frontiers · Grand campaign</span><h2>A country worth fighting for.</h2><p>32 provinces. Persistent frontlines. Industry, supply and combined arms.</p>
   <label for="faction">Command doctrine</label><select id="faction"><option value="union">Arden Union · industry +20%</option><option value="vanguard">Iron Vanguard · tank health +20%, tank cost +10%</option><option value="rangers">Frontier League · speed +15%, faster infantry recruitment</option></select>
   <label for="match-length">Campaign length</label><select id="match-length"><option value="short">Operation · 20 minutes / 60% territory + enemy capital</option><option value="long">Grand campaign · 45 minutes / total conquest</option></select>
+  <label for="terrain-seed">Landscape seed <small>(leave blank for a new landscape)</small></label><input id="terrain-seed" type="number" min="0" max="4294967295" step="1" placeholder="Random every new campaign">
   <p>At the time limit, accumulated territory score decides the winner. Aircraft arrive after ground V1.0.</p>
   <div class="setup-actions"><button id="begin-campaign">Begin campaign</button><button id="resume-campaign">Return to battlefield</button></div>
  </dialog>
- <script src="fog.js"></script>
- <script src="projection.js"></script>
- <script src="ground-detail.js"></script>
- <script src="simulation.js"></script>
- <script src="geography.js"></script>
- <script src="world.js"></script>
- <script src="territory.js"></script>
- <script src="campaign.js"></script>
- <script src="models.js"></script>
- <script src="game.js"></script>
+ <script src="fog.js?v=terrain-3"></script>
+ <script src="projection.js?v=terrain-3"></script>
+ <script src="ground-detail.js?v=terrain-3"></script>
+ <script src="simulation.js?v=terrain-3"></script>
+ <script src="geography.js?v=terrain-3"></script>
+ <script src="terrain-art.js?v=terrain-3"></script><script src="terrain.js?v=terrain-3"></script><script src="world.js?v=terrain-3"></script>
+ <script src="territory.js?v=terrain-3"></script>
+ <script src="campaign.js?v=terrain-3"></script>
+ <script src="models.js?v=terrain-3"></script>
+ <script src="game.js?v=terrain-3"></script>
 </body>
 </html>

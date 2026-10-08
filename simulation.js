@@ -79,15 +79,16 @@
       if(slots.some((p,i)=>slots.some((q,j)=>i!==j&&distance(p,q)<75))){const columns=Math.ceil(Math.sqrt(units.length)),rows=Math.ceil(units.length/columns);slots=units.map((u,i)=>({x:destination.x+(i%columns-(columns-1)/2)*85,y:destination.y+(Math.floor(i/columns)-(rows-1)/2)*85}));}}
     return units.map(u=>{let best=0;for(let i=1;i<slots.length;i++)if(distance(u,slots[i])<distance(u,slots[best]))best=i;return {id:u.id,goal:slots.splice(best,1)[0]};});
   }
-  function closestEnemy(state, u, maxDistance = Infinity) {
+  function closestEnemy(state, u, maxDistance = Infinity, requireClearFire = false) {
     let target = null, best = maxDistance;
-    for (const v of state.units) if (v.side !== u.side && v.hp > 0) { const d = distance(u, v); if (d < best) { best = d; target = v; } }
+    for (const v of state.units) if (v.side !== u.side && v.hp > 0) { const d = distance(u, v); if (d < best) { if(requireClearFire&&u.type!=='artillery'&&state.map?.lineOfFire&&!state.map.lineOfFire(u,v)){u.fireBlocked=true;continue;} best = d; target = v; } }
     return target;
   }
   function trenchAt(state,u){if(u.type!=='infantry'||u.moving)return null;return (state.buildings||[]).find(b=>{if(b.type!=='trench'||b.owner!==u.side||b.hp<=0||b.remaining)return false;const a=b.angle||0,dx=u.x-b.x,dy=u.y-b.y;return Math.abs(dx*Math.cos(a)+dy*Math.sin(a))<=110&&Math.abs(-dx*Math.sin(a)+dy*Math.cos(a))<=38;})||null;}
   function trenchCover(state,u){return Boolean(trenchAt(state,u));}
 
-  function damageMultiplier(state,u){const t=terrainFor(state,u.x,u.y),terrain=t==='forest'?.75:t==='hill'?.9:1;return terrain*(trenchCover(state,u)?.5:1);}
+  const terrainModifiers={open:{name:'Open ground',damage:1,speed:1},forest:{name:'Forest',damage:.75,speed:.75},hill:{name:'Hillside',damage:.9,speed:.92},ridge:{name:'Ridge cover',damage:.8,speed:.85},valley:{name:'Valley',damage:1,speed:1},marsh:{name:'Marsh',damage:1,speed:.6},water:{name:'Water',damage:1,speed:1}};
+  function damageMultiplier(state,u){const t=terrainFor(state,u.x,u.y);return (terrainModifiers[t]?.damage??1)*(trenchCover(state,u)?.5:1);}
   function impact(state,target,damage,facility=false){const before=target.hp;target.hp=Math.max(0,target.hp-damage);if(target.hp===0&&before>0){if(facility)emit(state,(target.name||'Facility')+' destroyed.',target);else{state.wrecks.push({x:target.x,y:target.y,angle:target.angle,type:target.type});if(state.wrecks.length>180)state.wrecks.shift();emit(state,target.name+' destroyed.',target);}if(state.explosions){state.explosions.push({x:target.x,y:target.y,ttl:2,total:2,size:45});if(state.explosions.length>96)state.explosions.shift();}}}
   function fire(state,u,target,facility=false){
     const damage=(facility?30:u.damage*(.4+.6*u.hp/u.maxHp)*(u.type==='artillery'?1:damageMultiplier(state,target)))*(.4+.6*(u.supply??1));u.turret=Math.atan2(target.y-u.y,target.x-u.x);
@@ -100,6 +101,7 @@
     const u = state.units.find(u => u.id === id && u.hp > 0 && u.side === 'blue');
     if (state.paused) return 'Resume the battle to fire.';
     if (!u || distance(u, factory) > (u.type==='artillery'?u.range:245)) return 'Move the selected formation within firing range of the '+name.toLowerCase()+'.';
+    if(u.type!=='artillery'&&state.map?.lineOfFire&&!state.map.lineOfFire(u,factory))return 'Ridge blocks direct fire. Reposition or use artillery.';
     if (factory.owner === 'blue') return name+' is under your control.';
     if (factory.hp <= 0) return name+' already disabled.';
     if (u.cooldown > 0) return 'Reloading. Try again shortly.';
@@ -118,7 +120,7 @@
     let goal=u.path[0],d=distance(u,goal);
     // Skip only waypoints with a clear navigable segment; bridge corners remain protected.
     if(state.map&&u.path.length>1&&d<55&&state.map.visible(u,u.path[1])){u.path.shift();goal=u.path[0];d=distance(u,goal);}
-    const terrain=terrainFor(state,u.x,u.y),maximum=u.speed*(terrain==='forest'?.75:terrain==='marsh'?.6:1)*(u.type==='infantry'?1:.35+.65*(u.fuel??1));
+    const terrain=terrainFor(state,u.x,u.y),maximum=u.speed*(terrainModifiers[terrain]?.speed??1)*(u.type==='infantry'?1:.35+.65*(u.fuel??1));
     const wanted=Math.atan2(goal.y-u.y,goal.x-u.x),delta=Math.atan2(Math.sin(wanted-u.angle),Math.cos(wanted-u.angle));
     u.angle+=clamp(delta,-3.6*dt,3.6*dt);
     const acceleration=u.speed*3,remaining=u.path.length===1?d:Infinity;
@@ -153,7 +155,8 @@
         const revision=state.map?.revision?.()??'static';
         if(u.blockedQueueRevision!==revision){const next=u.commandQueue[0],planned=routeFor(state,u,next.destination);if(planned.length){u.path=planned;u.order=next.order;u.targetId=null;u.commandQueue.shift();delete u.blockedQueueRevision;}else u.blockedQueueRevision=revision;}
       }
-      const enemy = closestEnemy(state, u, u.range);
+      u.fireBlocked=false;
+      const enemy = closestEnemy(state, u, u.range, true);
       const retreating = u.order === 'repair' || u.order === 'withdraw';
       const relocating = u.order === 'move' && u.path.length > 0;
       if (enemy && !retreating && !relocating) {
@@ -161,7 +164,7 @@
         u.status = 'Engaging ' + enemy.name; u.turret = Math.atan2(enemy.y - u.y, enemy.x - u.x);
         if (u.cooldown <= 0) { fire(state, u, enemy); u.cooldown = u.type==='artillery'?5:u.type === 'tank' ? 1.65 : 1.1; }
       } else if (u.path.length) { move(state, u, dt); u.turret = u.angle; u.status = retreating ? 'Withdrawing' : relocating ? 'Moving · disengaging from combat' : 'Advancing'; }
-      else { u.velocity=0;u.status = u.commandQueue?.length ? 'Queued route blocked � awaiting crossing' : u.order === 'repair' ? 'Refitting at depot' : 'Holding position'; }
+      else { u.velocity=0;u.status = u.commandQueue?.length ? 'Queued route blocked · awaiting crossing' : u.order === 'repair' ? 'Refitting at depot' : u.fireBlocked ? 'Ridge blocks direct fire · reposition or use artillery' : 'Holding position'; }
       if (u.order === 'repair' && distance(u, u.repairTarget||state.depot) < 45 && u.hp < u.maxHp) {
         const healing = Math.min(7 * dt, u.maxHp - u.hp, state.materiel / .6);
         u.hp += healing; state.materiel -= healing * .6;
@@ -190,5 +193,5 @@
     if (!state.facilities) state.capture = state.factory.capture;
     if (!state.regional && !state.units.some(u => u.side === 'blue' && u.hp > 0)) { state.winner = 'red'; emit(state, 'Your assault force has been lost. Restart to try a different approach.'); }
   }
-  return { WORLD, formationPlan, formation, create, step, command, bombard, fireMission, repairFactory, height, terrain, route, distance, clamp, trenchCover, trenchAt };
+  return { terrainModifiers, WORLD, formationPlan, formation, create, step, command, bombard, fireMission, repairFactory, height, terrain, route, distance, clamp, trenchCover, trenchAt };
 });

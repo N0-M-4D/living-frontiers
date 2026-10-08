@@ -59,9 +59,14 @@
     }
     function chamfer(x,y,z,w,d,h,colors=metal,a=0,taper=.85){
       const c=Math.cos(a),s=Math.sin(a),k=Math.min(w,d)*.2;
-      prism([[-w/2+k,-d/2],[w/2-k,-d/2],[w/2,-d/2+k],[w/2,d/2-k],[w/2-k,d/2],[-w/2+k,d/2],[-w/2,d/2-k],[-w/2,-d/2+k]].map(([u,v])=>[x+u*c-v*s,y+u*s+v*c]),z,h,colors,taper);
+      let outline=[[-w/2+k,-d/2],[w/2-k,-d/2],[w/2,-d/2+k],[w/2,d/2-k],[w/2-k,d/2],[-w/2+k,d/2],[-w/2,d/2-k],[-w/2,-d/2+k]];
+      if(detail&&(type==='tank'||type==='mech')){
+        outline=[];for(const [cx,cy,start] of [[w/2-k,-d/2+k,-Math.PI/2],[w/2-k,d/2-k,0],[-w/2+k,d/2-k,Math.PI/2],[-w/2+k,-d/2+k,Math.PI]])for(let i=0;i<4;i++){const a=start+i*Math.PI/6;outline.push([cx+Math.cos(a)*k,cy+Math.sin(a)*k]);}
+      }
+      prism(outline.map(([u,v])=>[x+u*c-v*s,y+u*s+v*c]),z,h,colors,taper);
     }
     function cylinder(x,y,z,r,h,colors=metal,n=10,taper=1){
+      if(detail&&(type==='refinery'||type==='tank-store'))n=Math.max(n,20);
       prism(Array.from({length:n},(_,i)=>[x+Math.cos(i*TAU/n)*r,y+Math.sin(i*TAU/n)*r]),z,h,colors,taper);
     }
     function beam(a,b,thickness,color){
@@ -82,6 +87,11 @@
       face([[x-w/2,y,z+rise],[x+w/2,y,z+rise],[x+w/2,y+d/2,z],[x-w/2,y+d/2,z]],colors[1]);
       face([[x+w/2,y-d/2,z],[x+w/2,y+d/2,z],[x+w/2,y,z+rise]],colors[2]);
       face([[x-w/2,y+d/2,z],[x-w/2,y-d/2,z],[x-w/2,y,z+rise]],colors[2]);
+      if(detail){
+        beam([x-w/2,y,z+rise+.15],[x+w/2,y,z+rise+.15],.65,colors[0]);
+        for(const side of [-1,1]){beam([x-w/2,y+side*d/2,z],[x+w/2,y+side*d/2,z],.8,stone[0]);
+          for(let j=1;j<5;j++){const f=j/5;beam([x-w/2,y+side*d/2*f,z+rise*(1-f)+.1],[x+w/2,y+side*d/2*f,z+rise*(1-f)+.1],.2,colors[2]);}}
+      }
     }
     function windows(x,y,z,w){for(let i=-w/2+6;i<w/2-2;i+=11){box(x+i,y,z,5,.4,6,['#899e90','#304d47','#406157']);if(detail)box(x+i,y+.35,z+2.8,5,.2,.45,stone);}}
     function doorway(x,y,w=12,h=13){box(x,y,2,w,.5,h,rubber);if(detail)for(let z=4;z<h;z+=2)box(x,y+.35,z,w,.15,.2,metal);}
@@ -172,14 +182,15 @@
         }else if(type==='garage'){
           box(0,0,h*.7,w+2,d+2,2,metal);for(const x of [-24,0,24]){doorway(x,d/2+.4,18,17);box(x,d/2+1,18,20,2,2,paint);}for(const x of [-22,22])box(x,0,h*.7+2,10,12,3,metal);
         }else{
-          roof(0,0,h*.7,w+4,d+4,h*.3,type==='house'?brick:metal);
+          const roofRise=Math.max(h*.3,d*.38);
+          roof(0,0,h*.7,w+4,d+4,roofRise,type==='house'?brick:metal);
           if(type==='supply'){box(0,d/2+6,0,w,12,4,wood);for(const x of [-w*.32,0,w*.32])crate(x,d/2+5,4,12,8,8);box(0,d/2+6,h*.58,w,14,1,paint);for(const x of [-w*.44,w*.44])box(x,d/2+11,4,1,1,h*.58-4,wood);}
           else if(type==='hq'){box(-w*.3,-d*.1,h*.7,22,22,h*.55,stone);box(-w*.3,-d*.1,h*1.25,26,26,2,paint);beam([-w*.3,-d*.1,h*1.25],[-w*.3,-d*.1,h*1.8],.9,metal[1]);beam([-w*.3-9,-d*.1,h*1.6],[-w*.3+9,-d*.1,h*1.6],.7,metal[1]);}
-          else if(type==='house')box(-w*.28,-d*.15,h*.75,4,5,h*.4,brick);
+          else if(type==='house')box(-w*.28,-d*.15,h*.7+roofRise*.65,4,5,h*.5,brick);
           doorway(0,d/2+.35,type==='warehouse'?14:8,type==='warehouse'?15:12);
           if(type==='barracks'){box(0,d/2+4,0,13,7,1,stone);box(0,d/2+2,1,11,4,1,stone);flag(w*.43,d*.45,h*1.2);}
         }
-        if(detail){if(type!=='garage'&&type!=='supply')windows(0,d/2+.4,h*.4,w);for(const y of [-d*.28,d*.15])box(w/2+.25,y,h*.4,.4,6,6,rubber);if(type==='warehouse')for(let x=-w/2+3;x<w/2;x+=6)beam([x,0,h],[x,d/2+2,h*.7],.3,stone[0]);}
+        if(detail){if(type!=='garage'&&type!=='supply')windows(0,d/2+.4,h*.4,w);for(const y of [-d*.28,d*.15])box(w/2+.25,y,h*.4,.4,6,6,rubber);if(type==='warehouse')for(let x=-w/2+3;x<w/2;x+=6)beam([x,0,h*.7+Math.max(h*.3,d*.38)],[x,d/2+2,h*.7],.3,stone[0]);}
         if(damaged){box(w*.17,0,h*.9,w*.28,d*.26,.3,rubber);beam([w*.1,d/2+.8,3],[w*.25,d/2+.8,h*.6],1.4,'#3c443a');crate(w*.55,d*.35,0,6,6,3);}
         break;
       }

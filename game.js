@@ -1,9 +1,9 @@
 (() => {
   'use strict';
-  const F=window.Frontiers,G=window.World,S=G.SCALE,$=id=>document.getElementById(id);
+  const F=window.Frontiers,S=window.World.SCALE,$=id=>document.getElementById(id);
   const canvas=$('battlefield'),host=canvas.parentElement;let ctx=canvas.getContext('2d');
   const reduced=matchMedia('(prefers-reduced-motion: reduce)');
-  let state=Campaign.create(),width=1000,height=720,scale=.2,offset={x:0,y:0},cameraTween=null;
+  let state=Campaign.create({terrainSeed:TerrainField.randomSeed()}),G=state.map,width=1000,height=720,scale=.2,offset={x:0,y:0},cameraTween=null;
   let last=0,accumulator=0,uiTime=0,fps=60,fpsFrames=0,fpsStart=0,pointer=null,cursorScreen=null,hoverWorld=null,destinationMark=null,orderMode=false;
   const C={ink:'#253f3c'};
   const modelRenderer=FrontierModels.createRenderer();
@@ -32,18 +32,18 @@
   function path(c,points,color,lineWidth,dash=[]){const cached=staticPaths.get(points);if(!cached){c.beginPath();points.forEach((p,i)=>i?c.lineTo(p.x,p.y):c.moveTo(p.x,p.y));}c.strokeStyle=color;c.lineWidth=lineWidth;c.lineCap='round';c.lineJoin='round';c.setLineDash(dash);if(cached)c.stroke(cached);else c.stroke();c.setLineDash([]);}
 
   function sampled(points,step=25){const result=[];for(let i=1;i<points.length;i++){const a=points[i-1],b=points[i],n=Math.ceil(F.distance(a,b)/step);for(let j=0;j<=n;j++){const x=a.x+(b.x-a.x)*j/n,y=a.y+(b.y-a.y)*j/n;result.push(project(x,y));}}return result;}
-  const boundaryCache=new WeakMap();
+  let boundaryCache=new WeakMap();
   function boundary(r){let points=boundaryCache.get(r.polygon);if(!points){points=sampled([...r.polygon,r.polygon[0]].map(([x,y])=>({x,y})));cachePath(points);boundaryCache.set(r.polygon,points);}return points;}
   function terrainBase(){
-    g.setTransform(.5,0,0,.5,0,0);g.clearRect(0,0,6400,3600);scenery.length=0;detailRoads.length=0;seed=94;
+    g.setTransform(.5,0,0,.5,0,0);g.clearRect(0,0,6400,3600);scenery.length=0;detailRoads.length=0;seed=state.terrainSeed??94;
     const coast=boundary({polygon:G.coast});poly(g,coast,'#aeba91','#ded6b2',18);g.save();poly(g,coast);g.clip();
     const p=(x,y,z)=>project(x*S,y*S,z===undefined?undefined:z*S);
-    for(let y=160;y<3120;y+=45)for(let x=240;x<4480;x+=45){const mx=(x+22)*S,my=(y+22)*S,t=G.terrain(mx,my),r=G.regionAt(mx,my);if(!r)continue;let hue=77,sat=22,light=64+random()*4;if(r.biome.includes('Agricultural')){hue=58;sat=28;light=64+random()*8;}if(r.biome.includes('Oil')||r.id==='ironvale'){hue=63;sat=13;light=61+random()*6;}if(t==='forest'){hue=103;light=45+random()*8;}if(t==='marsh'){hue=106;light=51+random()*5;}if(t==='hill'){sat=10;light=65+G.height(mx,my)/S*.1+random()*4;}poly(g,[p(x,y),p(x+45,y),p(x+45,y+45),p(x,y+45)],`hsl(${hue} ${sat}% ${light}%)`);}
+    TerrainArt.paint(g,G,project);
     const river=[];for(let y=100*S;y<3250*S;y+=20*S)river.push(project(G.riverX(y),y,2*S));path(g,river,'#c8ccb0',78);path(g,river,'#527f89',67);path(g,river,'#82a8ac',56);path(g,river,'#aac5bd',1);
     for(const road of G.roads){const points=sampled(road,60);cachePath(points);detailRoads.push(points);path(g,points,'#7c816b',12/S);path(g,points,'#d5c9aa',8/S);}
     for(const r of state.regions){
       const agricultural=r.biome.includes('Agricultural')||r.id==='southfields';
-      for(let i=0;i<(agricultural?26:5);i++){const x=r.x-650+random()*1300,y=r.y-600+random()*1200;if(!G.walkable(x,y)||G.regionAt(x,y)?.id!==r.id)continue;const w=100+random()*130,d=80+random()*80;if(agricultural){poly(g,[project(x,y),project(x+w,y),project(x+w,y+d),project(x,y+d)],i%2?'#b8aa75':'#92a16e','#c9c39f',1);for(let j=10;j<d;j+=14)path(g,[project(x,y+j),project(x+w,y+j)],'#77875a',.6);}else if(G.terrain(x,y)==='open'){path(g,sampled([{x,y},{x:x+90,y:y+40}]),'#8d9776',1);}}
+      for(let i=0;i<(agricultural?26:5);i++){const x=r.x-650+random()*1300,y=r.y-600+random()*1200;if(!G.walkable(x,y)||G.regionAt(x,y)?.id!==r.id||(G.slope?.(x,y)||0)>.12)continue;const w=100+random()*130,d=80+random()*80;if(agricultural){poly(g,[project(x,y),project(x+w,y),project(x+w,y+d),project(x,y+d)],i%2?'#b8aa75':'#92a16e','#c9c39f',1);for(let j=10;j<d;j+=14)path(g,[project(x,y+j),project(x+w,y+j)],'#77875a',.6);}else if(G.terrain(x,y)==='open'){path(g,sampled([{x,y},{x:x+90,y:y+40}]),'#8d9776',1);}}
       scenery.push({x:r.x,y:r.y,w:115,d:65,h:45,kind:r.id==='westhaven'?'depot':'factory',factory:r.factory,draw:'building'});
       const city=['westhaven','eastwatch','greywater','ironvale'].includes(r.id),count=city?42:18;
       for(let i=0;i<count;i++){const x=r.x+(i%7-3)*65,y=r.y+125+Math.floor(i/7)*60;if(!G.walkable(x,y))continue;scenery.push({x,y,w:24+random()*22,d:22+random()*18,h:14+random()*(city?38:16),kind:i%5===0?'depot':'warehouse',draw:'building'});}
@@ -158,7 +158,7 @@
       markerPositions.set(u.id,p);const key=Math.floor(p.x/36)+','+Math.floor(p.y/32);if(!bins.has(key))bins.set(key,[]);bins.get(key).push(p);
     }
   }
-  const groundDetail=GroundDetail.create(G,project);
+  let groundDetail=GroundDetail.create(G,project);
   function drawGroundDetail(){groundDetail.draw(ctx,[unproject(0,0),unproject(width,0),unproject(0,height),unproject(width,height)]);}
   const fogCanvas=document.createElement('canvas');fogCanvas.width=1600;fogCanvas.height=900;
   const fogContext=fogCanvas.getContext('2d');let fogState=null,fogRevision=-1,sightPath=new Path2D();
@@ -221,7 +221,7 @@
     layoutMarkers();
     for(const u of state.units)if(u.hp>0){const p=markerPositions.get(u.id);if(!p)continue;const anchor=screen(u.x,u.y);path(ctx,[anchor,p],u.side==='blue'?'#397f9190':'#ad604c90',1);ctx.font='600 10px Segoe UI';ctx.textAlign='center';ctx.fillStyle=selection.has(u.id)?'#f9e3a7':u.side==='blue'?'#edf4e6':'#f8e2d2';ctx.beginPath();ctx.roundRect(p.x-15,p.y-9,30,18,3);ctx.fill();ctx.strokeStyle=u.side==='blue'?'#2d6b7d':'#9a4d43';ctx.lineWidth=1;ctx.stroke();ctx.fillStyle=ctx.strokeStyle;ctx.fillText(u.side==='blue'?(u.label||u.id.toUpperCase()):u.militia?'◇':u.type==='artillery'?'▲':'◆',p.x,p.y+3);ctx.fillStyle='#294a3f45';ctx.fillRect(p.x-15,p.y+11,30,3);ctx.fillStyle=u.side==='blue'?'#397f91':'#ad604c';ctx.fillRect(p.x-15,p.y+11,30*u.hp/u.maxHp,3);}
     if(pointer?.dragged&&!pointer.pan&&pointer.button===0){const b=canvas.getBoundingClientRect(),x=Math.min(pointer.x,pointer.lastX)-b.left,y=Math.min(pointer.y,pointer.lastY)-b.top,w=Math.abs(pointer.lastX-pointer.x),h=Math.abs(pointer.lastY-pointer.y);ctx.fillStyle='#83c6db33';ctx.fillRect(x,y,w,h);ctx.strokeStyle='#e6f8ff';ctx.lineWidth=1.5;ctx.strokeRect(x,y,w,h);}
-    if(hoverWorld&&!pointer?.dragged){const r=Campaign.at(state,hoverWorld.x,hoverWorld.y);ctx.font='11px Segoe UI';ctx.textAlign='left';ctx.fillStyle='#203e38';ctx.fillText(r?`${r.name} · ${G.terrain(hoverWorld.x,hoverWorld.y)}${orderMode?' · click to order':''}`:'Sea · cannot move here',20,height-65);}
+    if(hoverWorld&&!pointer?.dragged){const r=Campaign.at(state,hoverWorld.x,hoverWorld.y);ctx.font='11px Segoe UI';ctx.textAlign='left';ctx.fillStyle='#203e38';ctx.fillText(r?`${r.name} · ${G.terrain(hoverWorld.x,hoverWorld.y)} · ${Math.round(G.height(hoverWorld.x,hoverWorld.y))} m${orderMode?' · click to order':''}`:'Sea · cannot move here',20,height-65);}
   }
   function rotateTrench(direction){trenchAngle=(trenchAngle+direction*Math.PI/12+Math.PI*2)%(Math.PI*2);updateUI();}
   $('rotate-trench').onclick=()=>rotateTrench(1);
@@ -249,13 +249,13 @@
     $('fire-mission').disabled=!units.some(u=>u.type==='artillery');$('fire-mission').setAttribute('aria-pressed',String(fireMode));
     $('fuel').textContent=Math.floor(state.fuel);$('manpower').textContent=Math.floor(state.manpower);$('auto-retreat').checked=state.autoRetreat;
     $('supply-status').textContent=units.length?'Supply '+Math.round(units.reduce((n,u)=>n+u.supply,0)/units.length*100)+'% · fuel '+Math.round(units.reduce((n,u)=>n+u.fuel,0)/units.length*100)+'%'+(units.some(u=>!u.supplied)?' · carrying supplies / cut off':' · connected'):'';
-    $('match-objective').textContent=Campaign.FACTIONS[state.faction].name+' · '+(state.mode==='short'?'Control 60% + Eastwatch':'Control every province')+' · '+Math.ceil((state.elapsedLimit-state.time)/60)+' minutes left';
+    $('match-objective').textContent=Campaign.FACTIONS[state.faction].name+' · '+(state.mode==='short'?'Control 60% + Eastwatch':'Control every province')+' · '+Math.ceil((state.elapsedLimit-state.time)/60)+' minutes left · Seed '+(state.terrainSeed??'legacy');
     updateBuildUI();
     if(buildMode&&hoverWorld){const error=Campaign.placement(state,buildMode,{...hoverWorld,angle:trenchAngle});$('command-hint').textContent=(error||'Click to place '+Campaign.BUILDINGS[buildMode].name)+(buildMode==='trench'?' · R / Shift+R rotate · '+Math.round(trenchAngle*180/Math.PI)+'°':'')+' · Esc cancels';}
     $('rotate-trench').hidden=buildMode!=='trench';$('rotate-trench').textContent='Rotate trench · R · '+Math.round(trenchAngle*180/Math.PI)+'°';
     $('clear-selection').disabled=!units.length;
     document.querySelector('.map-title h2').textContent=scale<.4?'Republic of Arden':r.name;
-    document.querySelector('.map-title p').textContent=scale<.4?'32 provinces · a continent at war':r.biome;
+    document.querySelector('.map-title p').textContent=scale<.4?'32 provinces · landscape '+(state.terrainSeed??'legacy'):r.biome+' · '+G.terrain(r.x,r.y)+' · '+Math.round(G.height(r.x,r.y))+' m';
     for(const mode of ['country','region','battle'])$('view-'+mode).setAttribute('aria-pressed',String(mode===(scale<.4?'country':scale<1.2?'region':'battle')));
     document.querySelectorAll('.legend span').forEach((item,i)=>{item.lastChild.textContent=(scale<.5?['Your territory','Enemy territory','Neutral territory']:['Your forces','Defenders','Frontline'])[i];if(i===2)item.querySelector('i').className=scale<.5?'neutral':'front';});
     $('country-owned').textContent=state.regions.filter(r=>r.owner==='blue').length+' / '+state.regions.length+' regions';$('region-picker').value=r.id;
@@ -264,10 +264,11 @@
     $('pause').textContent=state.paused?'Resume':'Pause';$('pause').setAttribute('aria-pressed',String(state.paused));
     if($('formation-list').children.length!==state.units.filter(u=>u.side==='blue').length)makeFormationButtons();
     for(const button of $('formation-list').children){const unit=state.units.find(u=>u.id===button.dataset.unit);button.disabled=unit.hp<=0;button.setAttribute('aria-pressed',String(selection.has(unit.id)));button.querySelector('.health').textContent=Math.ceil(unit.hp/unit.maxHp*100)+'%';button.querySelector('small').textContent=unit.hp<=0?'Destroyed':(Campaign.at(state,unit.x,unit.y)?.name||'Border')+' · '+(Campaign.TROOPS[unit.type]?.name||unit.type);}
-    $('unit-name').textContent=units.length>1?units.length+' companies selected':u?.name||'Select a company';$('unit-state').textContent=units.length>1?units.map(u=>u.name+' · '+u.status).join(' / '):(u?u.status+((u.commandQueue?.length||0)?' � '+u.commandQueue.length+' queued waypoints':''):null)||'Click blue troops or drag a selection box. Shift adds companies.';
-    const terrain=u?G.terrain(u.x,u.y):null;$('terrain-effect').textContent=terrain==='forest'?'Forest active · damage −25% / speed −25%':terrain==='hill'?'High ground active · incoming damage −10%':terrain==='marsh'?'Marsh active · movement speed −40%':'Open ground · no terrain protection';
-    if(units.length>1)$('terrain-effect').textContent=units.map(u=>u.name[0]+': '+G.terrain(u.x,u.y)).join(' · ')+' · terrain applies to each company';
-    if(u&&F.trenchCover(state,u))$('terrain-effect').textContent='Trench cover ACTIVE · incoming damage −50% · leave trench to advance';
+    $('unit-name').textContent=units.length>1?units.length+' companies selected':u?.name||'Select a company';$('unit-state').textContent=units.length>1?units.map(u=>u.name+' · '+u.status).join(' / '):(u?u.status+((u.commandQueue?.length||0)?' · '+u.commandQueue.length+' queued waypoints':''):null)||'Click blue troops or drag a selection box. Shift adds companies.';
+    const terrain=u?G.terrain(u.x,u.y):'open',effect=F.terrainModifiers[terrain]||F.terrainModifiers.open;
+    const cover=effect.damage*(u&&F.trenchCover(state,u)?.5:1);
+    $('terrain-effect').textContent=u?`${effect.name} · ${Math.round(G.height(u.x,u.y))} m · incoming damage -${Math.round((1-cover)*100)}% · terrain speed -${Math.round((1-effect.speed)*100)}%${F.trenchCover(state,u)?' · trench active':''}`:'Select troops to inspect terrain and cover';
+    if(units.length>1)$('terrain-effect').textContent=units.map(u=>u.label+': '+G.terrain(u.x,u.y)).join(' · ')+' · cover applies per company';
     $('attack-move').disabled=!u;$('attack-move').setAttribute('aria-pressed',String(orderMode&&attackMove));
     $('hold').disabled=!u;$('retreat').disabled=!u;$('move-order').disabled=!u;$('move-order').setAttribute('aria-pressed',String(orderMode&&!attackMove));$('move-order').textContent=orderMode&&!attackMove?'Click destination · Esc cancels':'Move / disengage · M';$('focus-unit').disabled=!u;$('focus-unit').textContent=units.length>1?'Find selected group':'Find company';
     document.querySelector('.mission h2').textContent=(r.owner==='blue'?'Hold ':'Secure ')+r.name;document.querySelector('.mission>p:not(#match-objective)').textContent=r.owner==='blue'?'This facility supplies your shared stockpile.':'Push the border forward and hold the marked town zone. Capture reward: '+r.reward+' materiel.';
@@ -297,9 +298,18 @@
   }
   for(const mode of ['country','region','battle'])$('view-'+mode).onclick=()=>setView(mode);
   $('pause').onclick=()=>{state.paused=!state.paused;updateUI();};
-  function adopt(next){state=next;selection.clear();visualCache.clear();for(const b of scenery)if(b.factory)b.factory=state.regions.find(r=>r.x===b.x&&r.y===b.y).factory;orderMode=false;buildMode=null;rallyMode=false;fireMode=false;batteryMode=false;destinationMark=null;frontTime=-1;frontSegments=[];updateFront();accumulator=0;selectedBuilding=state.buildings.find(b=>b.owner==='blue')?.id;buildListKey='';recruitKey='';lastNotice='';makeFormationButtons();setView('country');updateUI();}
+  function adopt(next){
+    state=next;G=state.map;selection.clear();visualCache.clear();modelRenderer.clear();boundaryCache=new WeakMap();frontVertices.clear();
+    groundDetail=GroundDetail.create(G,project);fogState=null;fogRevision=-1;terrainBase();
+    orderMode=false;buildMode=null;rallyMode=false;fireMode=false;batteryMode=false;destinationMark=null;frontTime=-1;frontSegments=[];updateFront();accumulator=0;
+    selectedBuilding=state.buildings.find(b=>b.owner==='blue')?.id;buildListKey='';recruitKey='';lastNotice='';makeFormationButtons();setView('country');updateUI();
+  }
   $('restart').onclick=()=>{state.paused=true;$('campaign-setup').showModal();};
-  $('begin-campaign').onclick=()=>{adopt(Campaign.create({faction:$('faction').value,mode:$('match-length').value}));$('campaign-setup').close();state.paused=false;updateUI();};
+  $('begin-campaign').onclick=()=>{
+    const input=$('terrain-seed');if(!input.reportValidity())return;
+    const terrainSeed=input.value.trim()===''?TerrainField.randomSeed():Number(input.value);
+    adopt(Campaign.create({faction:$('faction').value,mode:$('match-length').value,terrainSeed}));$('campaign-setup').close();state.paused=false;updateUI();
+  };
   $('resume-campaign').onclick=()=>{$('campaign-setup').close();state.paused=false;updateUI();};
   $('campaign-setup').addEventListener('cancel',()=>{state.paused=false;});
   $('save-game').onclick=()=>{try{localStorage.setItem('living-frontiers-grand-v1',Campaign.serialize(state));feedback('Campaign saved on this browser.');}catch(error){feedback('Save failed: '+error.message);}updateUI();};

@@ -1,7 +1,7 @@
 /* Original visual study. Scripted animation, not a replacement game simulation. */
 (() => {
 'use strict';
-const W=World,S=W.SCALE,canvas=document.querySelector('#scene'),ctx=canvas.getContext('2d');
+const W=World.withTerrain(823901),S=W.SCALE,canvas=document.querySelector('#scene'),ctx=canvas.getContext('2d');
 const $=id=>document.getElementById(id),reduce=matchMedia('(prefers-reduced-motion: reduce)');
 const region=W.regions.find(r=>r.id==='greywater'),hub={x:region.x,y:region.y},focus={x:hub.x+220,y:hub.y+210};
 const P=(x,y,z)=>Projection.project(x,y,z,W),TAU=Math.PI*2;
@@ -17,7 +17,7 @@ function points(world){return world.map(p=>P(p.x,p.y))}
 function groundRect(c,x,y,w,d,fill,stroke){shape(c,points([{x,y},{x:x+w,y},{x:x+w,y:y+d},{x,y:y+d}]),fill,stroke,.35)}
 function ellipse(c,p,rx,ry,fill){c.beginPath();c.ellipse(p.x,p.y,rx,ry,0,0,TAU);c.fillStyle=fill;c.fill()}
 function makeBase(){ground.setTransform(.5,0,0,.5,0,0);ground.clearRect(0,0,6400,3600);const coast=W.coast.map(([x,y])=>P(x,y));shape(ground,coast,'#7a8260','#b4b58f',19);ground.save();shape(ground,coast);ground.clip();
- for(let y=180*S;y<3100*S;y+=90*S)for(let x=200*S;x<4500*S;x+=90*S){if(!W.land(x+45*S,y+45*S))continue;const terrain=W.terrain(x,y),hill=W.height(x,y)/S;let color=terrain==='forest'?`hsl(91 19% ${30+rand()*7}%)`:terrain==='marsh'?`hsl(93 13% ${37+rand()*6}%)`:`hsl(72 16% ${43+rand()*5+hill*.075}%)`;groundRect(ground,x,y,90*S,90*S,color)}
+ TerrainArt.paint(ground,W,P);
  for(const r of W.regions){for(let i=0;i<13;i++){const x=r.x-750+rand()*1450,y=r.y-650+rand()*1300,w=120+rand()*180,d=85+rand()*220;if(!W.walkable(x,y)||W.terrain(x,y)==='forest')continue;groundRect(ground,x,y,w,d,['#8c8c61','#999267','#687957','#9a956c','#777c54'][i%5],'#586c5080');for(let n=10;n<d;n+=18)line(ground,points([{x:x+5,y:y+n},{x:x+w-5,y:y+n}]),'#444e3224',.6)}
   for(let i=0;i<(r.id===region.id?0:10);i++){const x=r.x+(i%4-1.5)*95,y=r.y+120+Math.floor(i/4)*110;if(W.walkable(x,y))buildings.push({x,y,w:38+rand()*25,d:35+rand()*25,h:22+rand()*16,kind:'house'})}}
  const river=[];for(let y=140*S;y<3200*S;y+=18*S)river.push(P(W.riverX(y),y,2*S));line(ground,river,'#575e4b',82);line(ground,river,'#87967f',73);line(ground,river,'#4c7472',65);line(ground,river,'#638a80',45);line(ground,river,'#819e8c55',1.1);

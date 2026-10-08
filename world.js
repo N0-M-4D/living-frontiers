@@ -1,4 +1,4 @@
-(function(root,factory){const api=factory(typeof module==='object'&&module.exports?require('./geography.js'):root.Geography);if(typeof module==='object'&&module.exports)module.exports=api;else root.World=api;})(globalThis,function(B){
+(function(root,factory){const api=factory(typeof module==='object'&&module.exports?require('./geography.js'):root.Geography,typeof module==='object'&&module.exports?require('./terrain.js'):root.TerrainField);if(typeof module==='object'&&module.exports)module.exports=api;else root.World=api;})(globalThis,function(B,Terrain){
  'use strict';
  const SCALE=Math.sqrt(10),small=p=>({x:p.x/SCALE,y:p.y/SCALE}),large=p=>({x:p.x*SCALE,y:p.y*SCALE});
  const coast=B.coast.map(([x,y])=>[x*SCALE,y*SCALE]);
@@ -22,5 +22,7 @@
  function route(a,b,blocked=[]){if(!walkable(b.x,b.y,blocked))return [];const p=baseRoute(a,b),valid=points=>points.length&&points.every((v,i)=>visible(i?points[i-1]:a,v,blocked));if(valid(p))return p;if(!blocked.length)return [];let best=[],length=Infinity;for(let i=0;i<bridges.length;i++){if(blocked.includes(i))continue;const y=bridges[i],x=riverX(y),direction=a.x<riverX(a.y)?1:-1,near={x:x-direction*110*SCALE,y},far={x:x+direction*110*SCALE,y};const candidate=[...baseRoute(a,near),far,...baseRoute(far,b)];if(!valid(candidate))continue;let d=0,prev=a;for(const v of candidate){d+=Math.hypot(v.x-prev.x,v.y-prev.y);prev=v;}if(d<length){length=d;best=candidate;}}return best;}
  function roadDistance(p){let best=Infinity;for(const road of roads)for(let i=1;i<road.length;i++){const a=road[i-1],b=road[i],dx=b.x-a.x,dy=b.y-a.y,t=Math.max(0,Math.min(1,((p.x-a.x)*dx+(p.y-a.y)*dy)/(dx*dx+dy*dy||1)));best=Math.min(best,Math.hypot(p.x-a.x-t*dx,p.y-a.y-t*dy));}return best;}
  const bounds={minX:240*SCALE,minY:160*SCALE,maxX:4480*SCALE,maxY:3120*SCALE};
- return {SCALE,coast,regions,regionAt,roads,roadLinks,riverX,bridges,height,terrain,land,walkable,visible,route,roadDistance,bounds,occupationCell:160,influenceRadius:720};
+ const api={SCALE,coast,regions,regionAt,roads,roadLinks,riverX,bridges,height,terrain,land,walkable,visible,route,roadDistance,bounds,occupationCell:160,influenceRadius:720,terrainSeed:null};
+ api.withTerrain=seed=>seed==null?api:{...api,...Terrain.create(api,seed),terrainSeed:seed>>>0};
+ return api;
 });

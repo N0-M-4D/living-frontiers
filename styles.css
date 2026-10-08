@@ -35,3 +35,5 @@ dialog{background:linear-gradient(#46523a,#283a2a);border:3px ridge #c2ab70;bord
 .game[data-selection=yes] .selected-panel #focus-unit{grid-row:4;grid-column:3}
 .game[data-selection=yes] .selected-panel #clear-selection,.game[data-selection=yes] .selected-panel .orders button{grid-row:5}
 @media(min-width:801px){.game[data-selection=yes] .auto-retreat{top:53px;bottom:auto;right:14px;width:150px;font-size:9px}}
+
+#terrain-seed{display:block;width:100%;padding:11px;margin:8px 0 16px;border:1px solid #82917b;border-radius:4px;background:#243b32;color:#eff0d9;font:inherit}#terrain-seed:focus-visible{outline:2px solid #e5c481;outline-offset:2px}label[for="terrain-seed"] small{font-weight:400}
