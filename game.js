@@ -277,14 +277,14 @@
     $('bombard').textContent='Bombard '+r.facility.toLowerCase();$('bombard').disabled=!u||r.owner==='blue'||f.hp<=0;$('repair-factory').hidden=r.owner!=='blue'||f.hp>=f.maxHp;$('repair-factory').textContent=f.repair?'Pause facility repairs':'Repair facility';
     if(!visible(r)){ $('capture-status').textContent='Scout this region for current intelligence';$('capture-value').textContent='Unknown';$('capture-fill').style.width='0%';$('capture-detail').textContent='Move troops closer to reveal defenders and town activity.';$('factory-condition').textContent='No current vision';$('factory-fill').style.width='0%';$('factory-detail').textContent='Condition unknown';$('bombard').disabled=true;}
     const event=state.events.filter(e=>e.visibleToPlayer!==false).at(-1);$('event').textContent=lastNotice||event?.message||'Select a blue company. Right-click anywhere on land to move or attack.';
-    $('performance').textContent=fps+' FPS · '+state.units.filter(u=>u.hp>0&&visible(u)).length+' visible formations · '+Math.round(scale*100)+'% zoom';
+    $('performance').textContent=(state.paused?'Paused':state.winner?'Campaign ended':fps+' FPS')+' · '+state.units.filter(u=>u.hp>0&&visible(u)).length+' visible formations · '+Math.round(scale*100)+'% zoom';
     document.querySelector('.game').dataset.selection=units.length?'yes':'no';$('cancel-order').hidden=!activeMode();$('unit-picker').value=units.length===1?units[0].id:'';$('fire-mission').hidden=!units.some(u=>u.type==='artillery');
     for(const [id] of Object.entries(actionGlyphs||{})){const button=$(id);button.title=button.textContent;button.setAttribute('aria-label',button.textContent);}
     $('outcome').hidden=!state.winner;if(state.winner)$('outcome').textContent=(state.winner==='blue'?'Victory · ':'Defeat · ')+(state.victoryReason||'Campaign concluded');
   }
-  function makeFormationButtons(){ $('unit-picker').replaceChildren(new Option('Choose company',''));for(const u of state.units.filter(u=>u.side==='blue'&&u.hp>0))$('unit-picker').add(new Option(u.name,u.id));$('formation-list').replaceChildren();for(const u of state.units.filter(u=>u.side==='blue')){const b=document.createElement('button');b.className='formation-button';b.dataset.unit=u.id;b.innerHTML=`<span class="symbol">${u.type==='tank'?'▰':u.type==='artillery'?'▲':u.type==='infantry'?'⋀':'▥'}</span><span><strong>${u.name}</strong><small></small></span><span class="health"></span>`;b.onclick=e=>select(u.id,e.shiftKey);$('formation-list').appendChild(b);}}
+  function makeFormationButtons(){ $('unit-picker').replaceChildren(new Option('Choose company',''));for(const u of state.units.filter(u=>u.side==='blue'&&u.hp>0))$('unit-picker').add(new Option(u.name,u.id));$('formation-list').replaceChildren();for(const u of state.units.filter(u=>u.side==='blue')){const b=document.createElement('button');b.className='formation-button';b.dataset.unit=u.id;const symbol=document.createElement('span'),label=document.createElement('span'),name=document.createElement('strong'),small=document.createElement('small'),health=document.createElement('span');symbol.className='symbol';symbol.textContent=({tank:'▰',artillery:'▲',infantry:'⋀',mech:'▥'})[u.type]||'·';name.textContent=u.name;health.className='health';label.append(name,small);b.append(symbol,label,health);b.onclick=e=>select(u.id,e.shiftKey);$('formation-list').appendChild(b);}}
   function countryScale(){return Math.min((width-55)/4500,(height-180)/2450);}
-  function cameraTo(zoom,centre,animate=true){const p=project(centre.x,centre.y),to={scale:zoom,x:width/2-p.x*zoom,y:height/2+25-p.y*zoom};if(animate&&!reduced.matches)cameraTween={start:performance.now(),from:{scale,x:offset.x,y:offset.y},to};else{scale=to.scale;offset={x:to.x,y:to.y};cameraTween=null;}}
+  function cameraTo(zoom,centre,animate=true){paintNeeded=true;const p=project(centre.x,centre.y),to={scale:zoom,x:width/2-p.x*zoom,y:height/2+25-p.y*zoom};if(animate&&!reduced.matches)cameraTween={start:performance.now(),from:{scale,x:offset.x,y:offset.y},to};else{scale=to.scale;offset={x:to.x,y:to.y};cameraTween=null;}}
   function setView(mode){const r=Campaign.region(state,state.selectedRegion),u=selectedUnit();cameraTo(mode==='country'?countryScale():mode==='region'?Math.min((width-70)/650,(height-150)/450):2.2*S,mode==='country'?{x:2350*S,y:1570*S}:mode==='region'?r:u||r);}
   function resize(){const oldW=width,oldH=height,initial=!canvas.width||!last;const centre=unproject(oldW/2,oldH/2);width=host.clientWidth;height=host.clientHeight;const dpr=Math.min(devicePixelRatio||1,1.5);canvas.width=Math.round(width*dpr);canvas.height=Math.round(height*dpr);if(initial)cameraTo(countryScale(),{x:2350*S,y:1570*S},false);else cameraTo(Math.max(countryScale(),scale),centre,false);}
   function issue(sx,sy,hit,queued=false,lineStart=null){
@@ -361,12 +361,40 @@
     if(pressed.dragged&&pressed.button!==2){if(!pressed.pan){cancelMode();const left=Math.min(pressed.x,e.clientX)-b.left,right=Math.max(pressed.x,e.clientX)-b.left,top=Math.min(pressed.y,e.clientY)-b.top,bottom=Math.max(pressed.y,e.clientY)-b.top;if(!pressed.shift)selection.clear();for(const u of state.units){if(u.side!=='blue'||u.hp<=0)continue;const points=[screen(u.x,u.y),markerPositions.get(u.id),...(scale/S>.38?visualUnits(u).map(v=>screen(v.x,v.y)):[])].filter(Boolean);if(points.some(p=>p.x>=left&&p.x<=right&&p.y>=top&&p.y<=bottom))selection.add(u.id);}orderMode=false;updateUI();}return;}
     if(pressed.button===1||spaceHeld)return;
     const point=canvasPoint(e),sx=point.x,sy=point.y,hit=pressed.targetId?state.units.find(u=>u.id===pressed.targetId&&u.hp>0&&visible(u)):pickFormation(sx,sy);if(pressed.button===0&&specialClick(sx,sy))return;if(pressed.button===2){if(activeMode()){cancelMode();feedback('Order cancelled. Selection kept.');}else issue(sx,sy,hit,pressed.shift,pressed.dragged?pressed.world:null);}else if(hit?.side==='blue')select(hit.id,pressed.shift);else if(orderMode)issue(sx,sy,hit,pressed.shift);else{const p=unproject(sx,sy),b=state.buildings.find(b=>b.owner==='blue'&&F.distance(b,p)<70),r=Campaign.at(state,p.x,p.y);if(b){selectedBuilding=b.id;showBuildPage(true);collapseConsole(false);document.querySelector('.game').dataset.panel='build';for(const tab of document.querySelectorAll('.panel-tabs [data-panel]'))tab.setAttribute('aria-pressed',String(tab.dataset.panel==='build'));}if(r)inspect(r.id);}updateUI();});
-  canvas.addEventListener('pointercancel',()=>pointer=null);canvas.addEventListener('pointerleave',()=>{cursorScreen=null;hoverWorld=null;});
+  canvas.addEventListener('pointercancel',()=>{pointer=null;paintNeeded=true;});canvas.addEventListener('pointerleave',()=>{cursorScreen=null;hoverWorld=null;paintNeeded=true;});
   canvas.addEventListener('dblclick',e=>{const b=canvas.getBoundingClientRect(),point=canvasPoint(e),p=unproject(point.x,point.y),r=Campaign.at(state,p.x,p.y);if(r){inspect(r.id);cameraTo(Math.max(scale,.75),p);}});
   canvas.addEventListener('wheel',e=>{e.preventDefault();cameraTween=null;cursorScreen=canvasPoint(e);const x=cursorScreen.x,y=cursorScreen.y,old=scale;scale=F.clamp(scale*Math.exp(-e.deltaY*.0015),countryScale()*.8,3.2*S);offset.x=x-(x-offset.x)*scale/old;offset.y=y-(y-offset.y)*scale/old;const p=unproject(x,y),r=Campaign.at(state,p.x,p.y);if(r)state.selectedRegion=r.id;updateUI();},{passive:false});
   window.addEventListener('keydown',e=>{if($('campaign-setup').open||$('controls-help').open||e.ctrlKey||e.metaKey||e.altKey||/^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName))return;if(e.code==='Space'){e.preventDefault();spaceHeld=true;}if(e.key.toLowerCase()==='r'&&buildMode==='trench'){e.preventDefault();rotateTrench(e.shiftKey?-1:1);}if(e.key.toLowerCase()==='p'&&!e.repeat)$('pause').click();if(/^[1-9]$/.test(e.key))select(String.fromCharCode(96+Number(e.key)),e.shiftKey);if(e.key.toLowerCase()==='f'){if(document.querySelector('.game').dataset.panel==='build'&&buildingTarget()?.type==='battery')$('battery-target').click();else $('fire-mission').click();}if(e.key.toLowerCase()==='a')$('attack-move').click();if(e.key.toLowerCase()==='h')$('hold').click();if(e.key.toLowerCase()==='m')$('move-order').click();if(e.key==='Escape'){if(activeMode()){cancelMode();feedback('Order cancelled. Selection kept.');}else{selection.clear();state.selected=null;collapseConsole(true);}updateUI();}});
   window.addEventListener('keyup',e=>{if(e.code==='Space')spaceHeld=false;});window.addEventListener('blur',()=>{spaceHeld=false;pointer=null;});
   document.addEventListener('visibilitychange',()=>{last=0;accumulator=0;});
-  function frame(now){const elapsed=last?Math.min((now-last)/1000,.25):0;last=now;if(!document.hidden){accumulator+=elapsed;while(accumulator>=.05){Campaign.step(state,.05);accumulator-=.05;}if(cameraTween){const t=Math.min(1,(now-cameraTween.start)/400),k=1-(1-t)**3;scale=cameraTween.from.scale+(cameraTween.to.scale-cameraTween.from.scale)*k;offset.x=cameraTween.from.x+(cameraTween.to.x-cameraTween.from.x)*k;offset.y=cameraTween.from.y+(cameraTween.to.y-cameraTween.from.y)*k;if(t>=1)cameraTween=null;}if(!state.paused||cameraTween||paintNeeded){render(elapsed);paintNeeded=false;}fpsFrames++;if(now-fpsStart>=1000){fps=Math.round(fpsFrames*1000/(now-fpsStart));fpsFrames=0;fpsStart=now;}uiTime+=elapsed;if(uiTime>.15){updateUI();uiTime=0;}}requestAnimationFrame(frame);}
+  function advanceCamera(now){
+    if(!cameraTween)return;
+    paintNeeded=true;
+    const t=Math.min(1,(now-cameraTween.start)/400),k=1-(1-t)**3;
+    scale=cameraTween.from.scale+(cameraTween.to.scale-cameraTween.from.scale)*k;
+    offset.x=cameraTween.from.x+(cameraTween.to.x-cameraTween.from.x)*k;
+    offset.y=cameraTween.from.y+(cameraTween.to.y-cameraTween.from.y)*k;
+    if(t>=1){cameraTween=null;updateUI();}
+  }
+  function updateFrameCounters(now,elapsed){
+    fpsFrames++;
+    if(now-fpsStart>=1000){fps=Math.round(fpsFrames*1000/(now-fpsStart));fpsFrames=0;fpsStart=now;}
+    uiTime+=elapsed;
+    if(uiTime<=.15)return;
+    if((!state.paused&&!state.winner)||cameraTween)updateUI();
+    uiTime=0;
+  }
+  function frame(now){
+    const elapsed=last?Math.min((now-last)/1000,.25):0;last=now;
+    if(!document.hidden){
+      accumulator+=elapsed;
+      while(accumulator>=.05){Campaign.step(state,.05);accumulator-=.05;}
+      advanceCamera(now);
+      if((!state.paused&&!state.winner)||cameraTween||paintNeeded){render(elapsed);paintNeeded=false;}
+      updateFrameCounters(now,elapsed);
+    }
+    requestAnimationFrame(frame);
+  }
+
   terrainBase();updateFront();makeFormationButtons();new ResizeObserver(entries=>{document.querySelector('.workspace').style.setProperty('--dock-height',entries[0].target.getBoundingClientRect().height+'px');}).observe(document.querySelector('.selection-dock'));new ResizeObserver(resize).observe(host);resize();updateUI();collapseConsole(true);$('campaign-setup').showModal();requestAnimationFrame(frame);
 })();

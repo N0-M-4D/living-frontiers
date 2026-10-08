@@ -7,7 +7,7 @@ A build-free JavaScript / Canvas ground-war game. One continuously zoomable coun
 From this directory:
 
 ```powershell
-python -m http.server 8765 --bind 127.0.0.1
+python serve.py
 ```
 
 Open http://127.0.0.1:8765/ and choose a doctrine and campaign length. Refresh the existing tab after source changes. Save and Load store one campaign in this browser's local storage; loading pauses the game. Changing browser, origin or clearing site data loses that local save.
@@ -110,3 +110,7 @@ Verification: 57 automated checks pass, including eight army-control checks. Hea
 ### Seeded terrain and model refinement
 
 New campaigns generate Perlin hills, ridges and valleys. Leave Landscape seed blank for a random landscape, or enter a number to replay one. Existing saves retain their original terrain. Ridges block direct fire and provide 20% damage reduction; artillery can fire over them. The company panel reports elevation, cover and movement penalties. Coastlines, province borders and river crossings remain authored. Roofs have steeper pitches and ridge/eave detail, with rounded armour and storage silhouettes at close zoom. See [terrain notes](docs/seeded-terrain.md). Run `node terrain.test.cjs` for nine terrain, combat, picking and save checks.
+
+### Security and reliability audit
+
+Use `python serve.py` for local play. It binds only to localhost, serves an explicit asset allowlist, blocks private files/directory listings, disables stale development caching and sends a Content Security Policy. It is a development launcher, not a production HTTPS host. Run `node audit.test.cjs` and `python -m unittest server_test.py` for save/input, idle-render and HTTP security checks. See [audit findings and remaining deployment gates](docs/security-reliability-audit.md).

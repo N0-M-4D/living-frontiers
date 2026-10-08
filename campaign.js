@@ -1,4 +1,4 @@
-(function(root,factory){const api=typeof module==='object'&&module.exports?factory(require('./simulation.js'),require('./world.js'),require('./territory.js'),require('./fog.js')):factory(root.Frontiers,root.World,root.Territory,root.Fog);if(typeof module==='object'&&module.exports)module.exports=api;else root.Campaign=api;})(globalThis,function(F,W,T,Fog){
+(function(root,factory){const api=typeof module==='object'&&module.exports?factory(require('./simulation.js'),require('./world.js'),require('./territory.js'),require('./fog.js'),require('./save-validation.js')):factory(root.Frontiers,root.World,root.Territory,root.Fog,root.SaveValidation);if(typeof module==='object'&&module.exports)module.exports=api;else root.Campaign=api;})(globalThis,function(F,W,T,Fog,Saves){
  'use strict';
  const FACTIONS={union:{name:'Arden Union',description:'Industry +20%; balanced forces.'},vanguard:{name:'Iron Vanguard',description:'Armour health +20%; tank cost +10%.'},rangers:{name:'Frontier League',description:'Movement +15%; infantry recruits 25% faster.'}};
  const BUILDINGS={barracks:{name:'Barracks',cost:120,time:12,hp:260,units:['infantry']},garage:{name:'Vehicle depot',cost:200,time:20,hp:360,units:['mech','tank']},battery:{name:'Artillery emplacement',cost:240,time:24,hp:240,units:[],range:3200,radius:240,reload:12,ammo:18},trench:{name:'Infantry trench',cost:60,time:8,hp:320,units:[]},supply:{name:'Supply depot',cost:100,time:12,hp:260,units:[]},industry:{name:'Machine works',cost:220,time:25,hp:320,units:[]},refinery:{name:'Oil refinery',cost:180,time:22,hp:280,units:[]}};
@@ -56,6 +56,25 @@
   Fog.update(c,c.map);
  }
  function serialize(c){const payload=JSON.parse(JSON.stringify(c,(key,value)=>['map','facilities','territory','_combatIndex'].includes(key)?undefined:value));payload.occupation=c.territory.cells.map(x=>[x.owner,x.value,x.contested]);return JSON.stringify({version:1,payload});}
- function restore(text){const parsed=JSON.parse(text);if(parsed.version!==1||!parsed.payload||parsed.payload.regions?.length!==W.regions.length||!Array.isArray(parsed.payload.units)||!Array.isArray(parsed.payload.buildings))throw Error('This save is not compatible with the grand campaign.');const data=parsed.payload;if(data.terrainVersion>1)throw Error('This terrain version is not supported.');const c=create({faction:data.faction,mode:data.mode,terrainSeed:data.terrainSeed??null});const occupation=data.occupation;delete data.occupation;Object.assign(c,data);c.map=mapFor(c);c.facilities=c.regions.map(r=>r.factory);c.territory=T.create(c,W);if(!Array.isArray(occupation)||occupation.length!==c.territory.cells.length)throw Error('Invalid territory data.');occupation.forEach((v,i)=>{if(!['blue','red','neutral'].includes(v[0])||!Number.isFinite(v[1]))throw Error('Invalid occupation cell.');Object.assign(c.territory.cells[i],{owner:v[0],value:v[1],contested:Boolean(v[2])});});for(const b of c.buildings)if(b.type==='battery'){b.name=BUILDINGS.battery.name;for(const q of b.queue||[]){if(q.cost){const pool=b.owner==='blue'?['materiel','fuel','manpower']:['enemyFunds','enemyFuel','enemyManpower'];pool.forEach((key,i)=>c[key]+=[q.cost.materiel,q.cost.fuel,q.cost.manpower][i]||0);}}b.queue=[];}Fog.update(c,c.map,true);c.paused=true;return c;}
+ function restoreOccupation(c,occupation){occupation.forEach((v,i)=>Object.assign(c.territory.cells[i],{owner:v[0],value:v[1],contested:v[2]}));}
+ function migrateBattery(b,c){
+  if(b.type!=='battery')return;
+  b.name=BUILDINGS.battery.name;
+  const pool=b.owner==='blue'?['materiel','fuel','manpower']:['enemyFunds','enemyFuel','enemyManpower'];
+  for(const q of b.queue)pool.forEach((key,i)=>c[key]+=q.cost[['materiel','fuel','manpower'][i]]);
+  b.queue=[];
+ }
+ function restore(text){
+  const data=Saves.parse(text);
+  if(data.terrainVersion>1)throw Error('This terrain version is not supported.');
+  const c=create({faction:data.faction,mode:data.mode,terrainSeed:data.terrainSeed??null});
+  data.terrainVersion??=c.terrainVersion;
+  Saves.validate(data,c,BUILDINGS,TROOPS);
+  const occupation=data.occupation;delete data.occupation;
+  Object.assign(c,data);c.map=mapFor(c);c.facilities=c.regions.map(r=>r.factory);
+  c.territory=T.create(c,W);restoreOccupation(c,occupation);
+  c.buildings.forEach(b=>migrateBattery(b,c));Fog.update(c,c.map,true);c.paused=true;return c;
+ }
+
  return {create,step,region,at,companies,construct,placement,recruit,cancelQueue,upgrade,infrastructure,repair,serialize,restore,spawn,logistics,batteryOrder,BUILDINGS,TROOPS,FACTIONS};
 });

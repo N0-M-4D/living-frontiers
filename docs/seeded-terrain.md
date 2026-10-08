@@ -31,3 +31,5 @@ Town roofs now have a stronger pitch, eaves, ridge caps and subtle surface bands
 Nine terrain checks cover deterministic/different seeds, varied landforms, picking through zoom and pan, spawn/route connectivity, save compatibility, real crest occlusion, blocked direct-fire damage, artillery over a crest and actual ridge damage reduction. Existing simulation, campaign, territory, fog, orders, projection and model checks also pass (73 total).
 
 Browser inspection covers the real campaign setup and regional view, the seeded visual study, and revised house roof in the model yard. The final in-app browser reload timed out after those observations; the server continued serving assets and all automated checks passed. Final reload acceptance, full-match balance, sustained target-machine FPS and a broad multi-seed visual review remain playtest gates.
+
+Follow-up: the [security and reliability audit](security-reliability-audit.md) identified the expensive individual terrain submissions and replaced them with batched fills. Seeded launch and regional rendering were subsequently observed in the browser.
