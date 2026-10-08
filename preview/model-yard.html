@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Living Frontiers | Model yard</title><link rel="stylesheet" href="model-yard.css"></head>
+<body>
+<header><a href="../index.html">LF <span>Living Frontiers</span></a><span class="subtitle">Model yard / Art pass 01</span><a href="visual-lab.html">Battlefield study</a></header>
+<main>
+  <section class="inspection" aria-label="Selected model">
+    <div class="stage-heading"><div><p id="category">Troops</p><h1 id="model-name">Medium tank</h1></div><span id="position">2 / 21</span></div>
+    <canvas id="model" aria-label="Isometric view of the selected model"></canvas>
+    <div class="stage-caption"><span>Original geometric artwork</span><span>Shared with the game</span></div>
+    <div class="controls">
+      <label>Rotate model <input id="rotation" type="range" min="0" max="360" step="5" value="0"><output id="degrees">0°</output></label>
+      <label>Colours <select id="side"><option value="blue">Arden / friendly</option><option value="red">Enemy</option><option value="neutral">Neutral</option></select></label>
+      <label>Condition <select id="condition"><option value="intact">Operational</option><option value="damaged">Damaged</option><option value="ruined">Destroyed</option><option value="construction">Under construction</option></select></label>
+      <label class="checkbox"><input id="detail" type="checkbox" checked> Close detail</label>
+    </div>
+    <div class="model-notes"><p id="description"></p><p id="scale-note">Models are enlarged for inspection. Ground footprint, gameplay and unit counts are unchanged.</p></div>
+  </section>
+  <aside><h2>Asset roster <span id="count">21 models</span></h2><nav id="filters" aria-label="Asset categories"><button data-group="All" aria-pressed="true">All</button><button data-group="Troops" aria-pressed="false">Troops</button><button data-group="Structures" aria-pressed="false">Structures</button><button data-group="Scenery" aria-pressed="false">Scenery</button><button data-group="Props" aria-pressed="false">Props</button></nav><div id="roster"></div></aside>
+</main>
+<footer>Pitched roofs, rounded armour and shared campaign models. Seeded terrain is now available in the battlefield. <a href="../docs/model-art-pass.md">Read the model notes</a></footer>
+<script src="../models.js?v=terrain-3"></script><script src="model-yard.js?v=terrain-3"></script>
+</body></html>

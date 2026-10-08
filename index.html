@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+  <meta name="referrer" content="no-referrer">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#233b3d">
+  <title>Living Frontiers — Arden</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+ <main class="game">
+  <header class="topbar">
+   <div class="identity"><span class="insignia" aria-hidden="true">◈</span><div><h1>Living Frontiers</h1><p>Arden campaign <span class="build">Grand campaign · MVP 0.5</span></p></div></div>
+   <div class="resources"><span>Materiel <strong id="materiel">120</strong></span><span>Fuel <strong id="fuel">220</strong></span><span>Manpower <strong id="manpower">250</strong></span><span>Field strength <strong id="strength">100%</strong></span><span>Time <strong id="time">00:00</strong></span></div>
+   <div class="top-actions"><button id="network-menu">Play / Multiplayer</button><button id="help-button">Controls ?</button><button id="pause" aria-pressed="false">Pause</button><button id="save-game" class="quiet">Save</button><button id="load-game" class="quiet">Load</button><button id="restart" class="quiet">Restart</button></div>
+  </header>
+  <div class="workspace">
+   <section class="battlefield" aria-label="Battlefield">
+    <canvas id="battlefield" tabindex="0" aria-label="Angled battlefield. Left-click a formation or use keys 1 to 9. Shift-click adds or removes a formation from your selection. Right-click to move or attack. The Move order button also lets you click a destination. Scroll to zoom, drag to pan.">Your browser needs Canvas support to display this battlefield.</canvas>
+    <div class="map-title"><span class="region-tag">Selected region</span><h2>Greywater</h2><p>Secure the steelworks</p></div>
+    <div class="view-controls"><button id="view-country" aria-pressed="true">Country</button><button id="view-region" aria-pressed="false">Region</button><button id="view-battle" aria-pressed="false">Close view</button></div>
+    <div id="outcome" class="outcome" hidden aria-live="polite"></div>
+    <button id="rotate-trench" hidden>Rotate trench · R</button><button id="cancel-order" hidden>Cancel order · Esc</button><div id="command-hint" class="command-hint" role="status">Click a blue company · Shift-click to select several</div><div class="map-bottom"><div class="legend"><span><i class="friendly"></i>Your forces</span><span><i class="enemy"></i>Defenders</span><span><i class="front"></i>Frontline</span></div><span class="map-help">Left-drag: select · Space-drag: pan · P: pause</span></div>
+   </section>
+   <div class="strategic-map"><div class="minimap-heading">Arden <span>Click to navigate</span></div><canvas id="minimap" width="240" height="156" tabindex="0" aria-label="Strategic minimap. Click to navigate; arrow keys pan the camera."></canvas></div><div class="selection-dock">    <section class="selected-panel"><span class="eyebrow">Company orders <strong id="selection-count">0 selected</strong></span><h2 id="unit-name">A Company</h2><p id="unit-state" class="unit-state">Ready for orders</p><p id="supply-status"></p><label class="auto-retreat"><input type="checkbox" id="auto-retreat" checked> Auto-retreat at 25% strength</label><div id="terrain-effect" class="terrain-effect">Open ground · no cover</div><button id="move-order" aria-pressed="false">Move / attack order</button><button id="fire-mission">Artillery fire mission · F</button><button id="attack-move" aria-pressed="false">Attack-move · A</button><button id="clear-selection">Clear selection · Esc</button><button id="focus-unit">Find company</button><div class="orders"><button id="hold">Hold position · H</button><button id="retreat">Return & repair</button></div><p class="order-help"><strong>1. Select:</strong> left-drag a box or click a company. Shift adds to your selection.<br><strong>2. Order:</strong> right-click land or an enemy. Move orders disengage. Right-drag forms a line. Shift + right-click queues waypoints. Attack-move (A) stops to fight.<br><strong>Camera:</strong> scroll to zoom, left-drag to box select; Space-drag or middle-drag to pan.</p></section>
+    <section class="formations" aria-label="Your formations"><div class="section-heading"><h2>Your formations</h2><span>Shift-click to add</span></div><select id="unit-picker" aria-label="Select a company"><option value="">Choose company</option></select><div id="formation-list"></div></section>
+</div>
+   <aside class="command-panel" aria-label="Battlefield command console">
+    <nav class="panel-tabs" aria-label="Command panel"><button data-panel="army" aria-pressed="true">Army</button><button data-panel="build">Build</button><button data-panel="intel">Intel</button><button id="toggle-console" aria-expanded="true" aria-controls="console-body" aria-label="Collapse command console">Hide</button></nav>
+    <div id="console-body">
+    <section class="build-panel">
+     <span class="eyebrow">Industry & reinforcement</span><h2>Build your war effort</h2><p>Place buildings near roads. Trenches can be dug anywhere on controlled dry land. Move infantry into trenches for cover.</p>
+     <div class="build-pages"><button id="show-construction" aria-pressed="true">Place new</button><button id="show-management" aria-pressed="false">Manage buildings</button></div><div id="build-icons" aria-label="Place a building"></div><label class="legacy-build" for="build-kind">Construction</label><select id="build-kind"></select><button id="place-building">Place building</button>
+     <div class="build-management"><label for="building-picker">Buildings & crossings</label><select id="building-picker"></select><p id="building-status"></p><div id="recruit-buttons"></div><p id="production-queue"></p>
+     <button id="battery-target">Aim artillery emplacement</button><button id="battery-stop">Cease bombardment</button><p id="battery-status"></p><button id="set-rally">Set rally point</button><button id="cancel-queue">Cancel last recruitment</button><button id="upgrade-building">Upgrade building</button><button id="repair-building">Repair infrastructure</button><button id="strike-building">Bombard this target</button><p id="build-feedback" role="status"></p></div>
+    </section>
+
+    <section class="country-panel"><div class="section-heading"><h2>Arden</h2><span id="country-owned">1 / 8 regions</span></div><label class="region-picker-label" for="region-picker">Inspect region</label><select id="region-picker"></select><p id="region-summary"></p><button id="inspect-region">Focus region</button></section>
+    <div class="mission"><p id="match-objective"></p><span class="eyebrow">Operation</span><h2>Take the eastern bank</h2><p>Cross either bridge, defeat the defenders and hold the steelworks.</p><div class="capture-row"><span id="capture-status">Enemy control</span><strong id="capture-value">0%</strong></div><div class="meter"><div id="capture-fill"></div></div><p id="capture-detail"></p></div>
+
+
+    <section class="facility-panel"><div class="section-heading"><h2>Steelworks</h2><span id="factory-condition">Operational</span></div><div class="meter facility"><div id="factory-fill"></div></div><p id="factory-detail">Intact capture preserves its production.</p><button id="bombard">Bombard steelworks</button><button id="repair-factory" hidden>Repair steelworks</button><p id="facility-feedback" class="feedback" aria-live="polite"></p></section>
+    </div>
+   </aside>
+  </div>
+  <footer class="statusbar"><span id="event" role="status">Select a blue company, then right-click a destination anywhere in the country.</span><span id="performance">Geometric placeholder art</span></footer>
+ </main>
+ <dialog id="controls-help" aria-labelledby="help-title"><span class="eyebrow">Field manual</span><h2 id="help-title">Command with confidence.</h2><dl><dt>Select troops</dt><dd>Left-click a blue company or drag a box. Shift adds or removes companies.</dd><dt>Move / retreat from combat</dt><dd>Right-click ground. Troops move without stopping to shoot. Shift + right-click queues another waypoint. Right-drag spreads selected companies along a line; release to confirm.</dd><dt>Attack</dt><dd>Right-click an enemy. Or press A, then click ground for attack-move.</dd><dt>Cancel</dt><dd>Escape or right-click cancels an active placement or targeting order, keeping your troops selected. Escape again clears selection.</dd><dt>Camera</dt><dd>Scroll to zoom. Hold Space and drag, or middle-drag, to pan.</dd><dt>Build & artillery</dt><dd>Build → choose a named building → click valid ground. Click an existing building to recruit or aim its battery.</dd><dt>Rotate trenches</dt><dd>During placement, R rotates 15 degrees; Shift+R rotates back. The cover area follows the trench.</dd><dt>Shortcuts</dt><dd>M move · A attack-move · H hold · F artillery · P pause · 1–9 select companies</dd></dl><button id="close-help">Back to battlefield</button></dialog>
+ <dialog id="campaign-setup">
+  <span class="eyebrow">Living Frontiers · Grand campaign</span><h2>A country worth fighting for.</h2><p>32 provinces. Persistent frontlines. Industry, supply and combined arms.</p>
+  <label for="faction">Command doctrine</label><select id="faction"><option value="union">Arden Union · industry +20%</option><option value="vanguard">Iron Vanguard · tank health +20%, tank cost +10%</option><option value="rangers">Frontier League · speed +15%, faster infantry recruitment</option></select>
+  <label for="match-length">Campaign length</label><select id="match-length"><option value="short">Operation · 20 minutes / 60% territory + enemy capital</option><option value="long">Grand campaign · 45 minutes / total conquest</option></select>
+  <label for="terrain-seed">Landscape seed <small>(leave blank for a new landscape)</small></label><input id="terrain-seed" type="number" min="0" max="4294967295" step="1" placeholder="Random every new campaign">
+  <p>At the time limit, accumulated territory score decides the winner. Aircraft arrive after ground V1.0.</p>
+  <div class="setup-actions"><button id="begin-campaign">Begin campaign</button><button id="resume-campaign">Return to battlefield</button></div>
+ </dialog>
+<dialog id="multiplayer-menu" aria-labelledby="multiplayer-title"><span class="eyebrow">Living Frontiers · Command room</span><h2 id="multiplayer-title">Choose your campaign.</h2><p>Command solo, or challenge another commander in a private or public match.</p><button id="play-solo">Play Solo</button><div class="lobby-actions"><label><input type="checkbox" id="public-match"> List room publicly</label><button id="host-match">Host Match</button></div><label for="join-code">Private invite code</label><div class="lobby-actions"><input id="join-code" maxlength="12" autocapitalize="characters" placeholder="Room code"><button id="join-match">Join Code</button></div><button id="refresh-rooms">Public Rooms · refresh</button><div id="public-rooms"></div><section id="lobby-details" hidden><h3>Invite code: <strong id="room-code"></strong></h3><button id="copy-invite">Copy invite code</button><ul id="room-players"></ul><div class="lobby-actions"><button id="ready-match">Ready</button><button id="start-match">Start match</button></div></section><p id="network-status" role="status">Multiplayer connects when you host, join or browse public rooms.</p><button id="return-match" hidden>Return to match</button><button id="return-match" hidden>Return to match</button><button id="leave-match" hidden>Leave match</button></dialog>
+ <script src="fog.js?v=online-1"></script>
+ <script src="projection.js?v=online-1"></script>
+ <script src="ground-detail.js?v=online-1"></script>
+ <script src="simulation.js?v=online-1"></script>
+ <script src="geography.js?v=online-1"></script>
+ <script src="terrain-art.js?v=online-1"></script><script src="terrain.js?v=online-1"></script><script src="world.js?v=online-1"></script>
+ <script src="territory.js?v=online-1"></script>
+ <script src="save-validation.js?v=online-1"></script>
+ <script src="campaign.js?v=online-1"></script>
+ <script src="models.js?v=online-1"></script>
+ <script src="multiplayer-client.js?v=online-1"></script>
+ <script src="game.js?v=online-1"></script>
+</body>
+</html>
