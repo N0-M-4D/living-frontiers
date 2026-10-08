@@ -7,11 +7,12 @@
   let last=0,accumulator=0,uiTime=0,fps=60,fpsFrames=0,fpsStart=0,pointer=null,cursorScreen=null,hoverWorld=null,destinationMark=null,orderMode=false;
   const C={ink:'#253f3c'};
   const modelRenderer=FrontierModels.createRenderer();
+  const battleFX=BattlefieldFX.create();
   const ground=document.createElement('canvas');ground.width=3200;ground.height=1800;
   const g=ground.getContext('2d');
   let paintNeeded=true;
   let seed=94;const random=()=>{seed=(Math.imul(seed,1664525)+1013904223)>>>0;return seed/4294967296;};
-  const scenery=[],detailRoads=[];
+  const scenery=[],detailRoads=[],detailFields=[];
   let markerPositions=new Map();
   let attackMove=false,spaceHeld=false;
   const visualCache=new Map(),networkPositions=new Map();
@@ -45,7 +46,7 @@
   let boundaryCache=new WeakMap();
   function boundary(r){let points=boundaryCache.get(r.polygon);if(!points){points=sampled([...r.polygon,r.polygon[0]].map(([x,y])=>({x,y})));cachePath(points);boundaryCache.set(r.polygon,points);}return points;}
   function terrainBase(){
-    g.setTransform(.5,0,0,.5,0,0);g.clearRect(0,0,6400,3600);scenery.length=0;detailRoads.length=0;seed=state.terrainSeed??94;
+    g.setTransform(.5,0,0,.5,0,0);g.clearRect(0,0,6400,3600);scenery.length=0;detailRoads.length=0;detailFields.length=0;seed=state.terrainSeed??94;
     const coast=boundary({polygon:G.coast});poly(g,coast,'#aeba91','#ded6b2',18);g.save();poly(g,coast);g.clip();
     const p=(x,y,z)=>project(x*S,y*S,z===undefined?undefined:z*S);
     TerrainArt.paint(g,G,project);
@@ -53,10 +54,14 @@
     for(const road of G.roads){const points=sampled(road,60);cachePath(points);detailRoads.push(points);path(g,points,'#7c816b',12/S);path(g,points,'#d5c9aa',8/S);}
     for(const r of state.regions){
       const agricultural=r.biome.includes('Agricultural')||r.id==='southfields';
-      for(let i=0;i<(agricultural?26:5);i++){const x=r.x-650+random()*1300,y=r.y-600+random()*1200;if(!G.walkable(x,y)||G.regionAt(x,y)?.id!==r.id||(G.slope?.(x,y)||0)>.12)continue;const w=100+random()*130,d=80+random()*80;if(agricultural){poly(g,[project(x,y),project(x+w,y),project(x+w,y+d),project(x,y+d)],i%2?'#b8aa75':'#92a16e','#c9c39f',1);for(let j=10;j<d;j+=14)path(g,[project(x,y+j),project(x+w,y+j)],'#77875a',.6);}else if(G.terrain(x,y)==='open'){path(g,sampled([{x,y},{x:x+90,y:y+40}]),'#8d9776',1);}}
+      for(let i=0;i<(agricultural?26:5);i++){const x=r.x-650+random()*1300,y=r.y-600+random()*1200;if(!G.walkable(x,y)||G.regionAt(x,y)?.id!==r.id||(G.slope?.(x,y)||0)>.12)continue;const w=100+random()*130,d=80+random()*80;if(agricultural){detailFields.push({x,y,w,d,color:i%2?'#b8aa75':'#92a16e'});poly(g,[project(x,y),project(x+w,y),project(x+w,y+d),project(x,y+d)],i%2?'#b8aa75':'#92a16e','#c9c39f',1);for(let j=10;j<d;j+=14)path(g,[project(x,y+j),project(x+w,y+j)],'#77875a',.6);}else if(G.terrain(x,y)==='open'){path(g,sampled([{x,y},{x:x+90,y:y+40}]),'#8d9776',1);}}
       scenery.push({x:r.x,y:r.y,w:115,d:65,h:45,kind:r.id==='westhaven'?'depot':'factory',factory:r.factory,draw:'building'});
       const city=['westhaven','eastwatch','greywater','ironvale'].includes(r.id),count=city?42:18;
-      for(let i=0;i<count;i++){const x=r.x+(i%7-3)*65,y=r.y+125+Math.floor(i/7)*60;if(!G.walkable(x,y))continue;scenery.push({x,y,w:24+random()*22,d:22+random()*18,h:14+random()*(city?38:16),kind:i%5===0?'depot':'warehouse',draw:'building'});}
+      for(let i=0;i<count;i++){const row=Math.floor(i/7),x=r.x+(i%7-3)*82,y=r.y+150+row*86;if(!G.walkable(x,y))continue;scenery.push({x,y,w:24+random()*22,d:22+random()*18,h:14+random()*(city?38:16),kind:i%5===0?'depot':'warehouse',angle:row%2?Math.PI:0,draw:'building'});}
+      for(let row=0;row<Math.ceil(count/7);row++){
+        const y=r.y+115+row*86,points=sampled([{x:r.x-295,y},{x:r.x+295,y}],24);cachePath(points);detailRoads.push(points);path(g,points,'#8b8c70',8/S);
+      }
+      const lane=sampled([{x:r.x,y:r.y},{x:r.x,y:r.y+115+Math.ceil(count/7)*86}],24);cachePath(lane);detailRoads.push(lane);path(g,lane,'#8b8c70',9/S);
       if(r.id==='ironvale'||r.facility==='Arsenal')for(let i=0;i<5;i++)path(g,sampled([{x:r.x+260+i*20,y:r.y-250},{x:r.x+260+i*20,y:r.y+400}]),'#596d65',.8);
     }
     for(let i=0;i<22000;i++){const x=(300+random()*4100)*S,y=(220+random()*2800)*S,t=G.terrain(x,y);if(t==='forest'||(t==='open'&&random()<.02)){scenery.push({x,y,size:19+random()*22,draw:'tree'});const q=project(x,y);g.fillStyle=t==='forest'?'#426747':'#698467';g.fillRect(q.x-1.5,q.y-1,3,2);}}
@@ -76,7 +81,7 @@
     const f=b.factory,type=buildingType(b),p=project(b.x,b.y);
     const condition=f?.hp<=0?'ruined':f?.remaining>0?'construction':f&&f.hp<f.maxHp*.5?'damaged':'intact';
     const fixed=['trench','battery','refinery'].includes(type);
-    modelRenderer.draw(ctx,type,p.x,p.y,1/S,{side:f?.owner||'neutral',state:condition,angle:f?.angle||0,turret:f?.aim||0,detail:scale/S>.38,
+    modelRenderer.draw(ctx,type,p.x,p.y,1/S,{side:f?.owner||'neutral',state:condition,angle:f?.angle||b.angle||0,turret:f?.aim||0,detail:scale/S>.38,
       w:fixed?undefined:b.w,d:fixed?undefined:b.d,h:fixed?undefined:(f?.remaining>0?32:b.h)});
     if(type==='battery'&&condition!=='ruined'&&condition!=='construction'&&scale/S>.38){
       for(let i=0;i<6;i++)soldier({x:b.x-40+i*16,y:b.y+30,side:f.owner,angle:f.aim||0});
@@ -90,7 +95,7 @@
   }
   function soldier(s){
     const p=project(s.x,s.y);
-    modelRenderer.draw(ctx,'infantry',p.x,p.y,1/S,{side:s.side,angle:s.angle||0,pose:s.moving?'march':'stand',detail:scale/S>1});
+    modelRenderer.draw(ctx,'infantry',p.x,p.y,1/S,{side:s.side,angle:s.angle||0,pose:s.moving?(Math.sin(state.time*7+s.x*.1)>0?'march':'step'):'stand',detail:scale/S>1});
   }
 
   function targetVisuals(u) {
@@ -170,7 +175,12 @@
     }
   }
   let groundDetail=GroundDetail.create(G,project);
-  function drawGroundDetail(){groundDetail.draw(ctx,[unproject(0,0),unproject(width,0),unproject(0,height),unproject(width,height)]);}
+  function drawGroundDetail(){
+    paintNeeded=groundDetail.draw(ctx,[unproject(0,0),unproject(width,0),unproject(0,height),unproject(width,height)],scale,Math.min(devicePixelRatio||1,1.5))||paintNeeded;
+    ctx.save();ctx.globalAlpha=F.clamp((scale-1)/.65,0,1);
+    for(const f of detailFields){if(!onScreen(f,200))continue;poly(ctx,[project(f.x,f.y),project(f.x+f.w,f.y),project(f.x+f.w,f.y+f.d),project(f.x,f.y+f.d)],f.color,'#74794f',1/S);for(let j=5;j<f.d;j+=10)path(ctx,[project(f.x,f.y+j),project(f.x+f.w,f.y+j)],'#66764565',.8/S);}
+    ctx.restore();
+  }
   const fogCanvas=document.createElement('canvas');fogCanvas.width=1600;fogCanvas.height=900;
   const fogContext=fogCanvas.getContext('2d');let fogState=null,fogRevision=-1,sightPath=new Path2D();
   function updateFogVisual(){const f=state.fog;if(fogState===f&&fogRevision===f.revision)return;fogState=f;fogRevision=f.revision;
@@ -190,8 +200,8 @@
     if(cursorScreen)hoverWorld=unproject(cursorScreen.x,cursorScreen.y);updateVisuals(elapsed);updateFront();updateFogVisual();
     const dpr=Math.min(devicePixelRatio||1,1.5);ctx.setTransform(dpr,0,0,dpr,0,0);ctx.fillStyle='#94b6b0';ctx.fillRect(0,0,width,height);
     ctx.save();ctx.translate(offset.x,offset.y);ctx.scale(scale,scale);drawWorldImage(ground);
-    if(scale>1){for(const points of detailRoads){const b=pathBounds.get(points);if(b&&(b.maxX*scale+offset.x< -10||b.minX*scale+offset.x>width+10||b.maxY*scale+offset.y< -10||b.minY*scale+offset.y>height+10))continue;path(ctx,points,'#83866f',12/S);path(ctx,points,'#d5c9aa',8/S);}}
-    if(scale/S>.55)drawGroundDetail();
+    if(scale>1)drawGroundDetail();
+    if(scale>1){for(const points of detailRoads){const b=pathBounds.get(points);if(b&&(b.maxX*scale+offset.x< -10||b.minX*scale+offset.x>width+10||b.maxY*scale+offset.y< -10||b.minY*scale+offset.y>height+10))continue;path(ctx,points,'#66705470',17/S);path(ctx,points,'#9a967b',12/S);path(ctx,points,'#c1b795',8/S);if(scale>2)path(ctx,points,'#706d5545',1.1/S,[5/S,7/S]);}}
     // Political overlay belongs to the overview; close terrain keeps its authored colours.
     const fade=F.clamp((.8-scale)/.5,0,1),ownershipOpacity=fade*fade*(3-2*fade);
     const ownershipColours={blue:'#237f9e',red:'#b45046',neutral:'#d4cbb0'};
@@ -213,7 +223,7 @@
       const b=visible(liveBridge)?liveBridge:{...liveBridge,hp:liveBridge.maxHp},p=project(b.x,b.y,3*S);
       modelRenderer.draw(ctx,'bridge',p.x,p.y,1/S,{side:'neutral',state:b.hp<=0?'ruined':b.hp<b.maxHp*.5?'damaged':'intact',w:130*S,d:23*S,h:28*S,detail:scale/S>.38});
     }
-    for(const c of state.craters)if(visible(c)&&onScreen(c)){const p=project(c.x,c.y);ctx.fillStyle='#493c3270';ctx.beginPath();ctx.ellipse(p.x,p.y,c.size/S,c.size*.5/S,0,0,7);ctx.fill();}
+    for(const c of state.craters)if(visible(c)&&onScreen(c))battleFX.crater(ctx,c,project,S);
     const battery=buildingTarget();if(battery?.type==='battery'&&battery.owner==='blue'&&(batteryMode||document.querySelector('.game').dataset.panel==='build')){ring(battery.x,battery.y,Campaign.BUILDINGS.battery.range,'#e8b462');if(battery.fireTarget)ring(battery.fireTarget.x,battery.fireTarget.y,Campaign.BUILDINGS.battery.radius,'#ef945f');}if(fireMode)for(const u of selectedUnits().filter(u=>u.type==='artillery'))ring(u.x,u.y,u.range,'#e8b462');
     if(hoverWorld&&(buildMode||rallyMode||fireMode||batteryMode)){const p={...hoverWorld,angle:trenchAngle},valid=buildMode?!Campaign.placement(state,buildMode,p):state.map.walkable(p.x,p.y);ring(p.x,p.y,buildMode?70:batteryMode?240:95,valid?'#b9efd2':'#ed8468');if(buildMode){ctx.globalAlpha=.55;building({x:p.x,y:p.y,w:80,d:55,h:32,kind:'factory',factory:{type:buildMode,owner:valid?'blue':'red',hp:1,maxHp:1,remaining:0,angle:buildMode==='trench'?trenchAngle:0}});ctx.globalAlpha=1;}}
 
@@ -223,9 +233,7 @@
     if(scale/S>.38){for(const u of state.units)if(u.hp>0&&visible(u)&&onScreen(u))objects.push(...visualUnits(u));for(const w of state.wrecks)if(visible(w)&&onScreen(w))objects.push({...w,wreck:true,draw:'vehicle'});}
     objects.sort((a,b)=>a.x+a.y-b.x-b.y);
     for(const o of objects){if(o.draw==='tree'){if(scale/S>.26)tree(o);else{const p=project(o.x,o.y);ctx.fillStyle='#53745b';ctx.fillRect(p.x-5,p.y-3,10,6);}}else if(o.draw==='building'){if(o.factory)building(o);else staticBuilding(o);}else if(o.draw==='soldier')soldier(o);else vehicle(o);}
-    for(const shot of state.shots){if(!visible(shot)||!Fog.visible(state,shot.tx,shot.ty)||(!onScreen(shot)&&!onScreen({x:shot.tx,y:shot.ty})))continue;const a=project(shot.x,shot.y,G.height(shot.x,shot.y)+10),b=project(shot.tx,shot.ty,G.height(shot.tx,shot.ty)+5),t=1-shot.ttl/.42;ctx.globalAlpha=1-t;path(ctx,[a,b],'#ffe7a4',Math.max(1.8,1/scale));ctx.fillStyle='#ffdb8c';ctx.beginPath();ctx.arc(b.x,b.y,(4+t*10),0,7);ctx.fill();ctx.globalAlpha=1;}
-    for(const shell of state.shells){const t=1-shell.remaining/shell.total,x=shell.x+(shell.tx-shell.x)*t,y=shell.y+(shell.ty-shell.y)*t;if(!Fog.visible(state,x,y)||!onScreen({x,y},150))continue;const z=G.height(x,y)+Math.sin(t*Math.PI)*240,p=project(x,y,z),tail=project(x-(shell.tx-shell.x)*.025,y-(shell.ty-shell.y)*.025,z-8);path(ctx,[tail,p],'#fff4bd',2/scale);ctx.fillStyle='#ffe2a0';ctx.beginPath();ctx.arc(p.x,p.y,2.5/scale,0,7);ctx.fill();}
-    for(const e of state.explosions){if(!visible(e)||!onScreen(e,100))continue;const t=1-e.ttl/e.total,p=project(e.x,e.y),radius=e.size/S*(.35+Math.min(t*5,1));ctx.globalAlpha=(1-t)*.8;ctx.fillStyle=t<.18?'#fff2b0':t<.4?'#ee9952':'#625e50';ctx.beginPath();ctx.ellipse(p.x,p.y-t*e.size/S,radius,radius*.75,0,0,7);ctx.fill();if(e.size>10&&!reduced.matches){ctx.strokeStyle='#ecd4a0';ctx.lineWidth=1/scale;ctx.beginPath();ctx.ellipse(p.x,p.y,radius*(1+t*2),radius*(.5+t),0,0,7);ctx.stroke();for(let i=0;i<6;i++){const a=i*2.399;const q=project(e.x+Math.cos(a)*e.size*t*2,e.y+Math.sin(a)*e.size*t*2,G.height(e.x,e.y)+Math.sin(t*Math.PI)*30);ctx.fillStyle='#f1bc76';ctx.fillRect(q.x,q.y,1/scale,1/scale);}}}ctx.globalAlpha=1;
+    battleFX.draw(ctx,state,{project,map:G,scale,visible,onScreen,reduced:reduced.matches||$('effects-quality').value==='reduced'});
     if(scale/S>.45&&!reduced.matches)for(const r of state.regions){const f=r.factory;if(!visible(f)||!onScreen(f)||f.hp<=0)continue;for(let i=0;i<3;i++){const phase=(state.time*.2+i/3)%1,p=project(f.x+phase*24,f.y-12,G.height(f.x,f.y)+48+phase*30);ctx.globalAlpha=.2*(1-phase);ctx.fillStyle=f.hp<100?'#394a42':'#edf0df';ctx.beginPath();ctx.ellipse(p.x,p.y,4+phase*10,3+phase*7,0,0,7);ctx.fill();}}ctx.globalAlpha=1;ctx.save();poly(ctx,boundary({polygon:G.coast}));ctx.clip();drawWorldImage(fogCanvas);ctx.restore();ctx.restore();
     for(const r of state.regions){if(!visible(r)){drawText(r.name+' · no current vision',r.x,r.y+130,'#606c68');continue;}if(scale<.5)drawText(r.name+' · '+(r.owner==='blue'?'Yours':r.owner==='red'?'Enemy':'Neutral'),r.x,r.y+130,r.owner==='blue'?'#175c76':r.owner==='red'?'#853a32':'#615944');else drawText(r.facility+(r.factory.hp<r.factory.maxHp*.5?' · damaged':''),r.x,r.y+75,r.owner==='blue'?'#286d7c':'#955644');}
     const queued=selectedUnit()?.commandQueue||[];for(const [i,next] of queued.entries()){if(!onScreen(next.destination,15))continue;const p=screen(next.destination.x,next.destination.y);ctx.fillStyle='#274955';ctx.beginPath();ctx.arc(p.x,p.y,10,0,Math.PI*2);ctx.fill();ctx.strokeStyle='#b1d8ef';ctx.lineWidth=1.5;ctx.stroke();ctx.font='600 10px Segoe UI';ctx.textAlign='center';ctx.fillStyle='#e7f6ff';ctx.fillText(String(i+1),p.x,p.y+3);}
@@ -255,6 +263,7 @@
     drawMinimap();const units=selectedUnits();for(const id of selection)if(!units.some(u=>u.id===id))selection.delete(id);state.selected=units[0]?.id||null;if(!units.length)orderMode=false;
     const r=Campaign.region(state,state.selectedRegion),f=r.factory,u=units[0],all=Campaign.companies(state);
     $('selection-count').textContent=units.length+' selected';
+    drawPortrait(u,units.length);
     $('command-hint').textContent=orderMode?(attackMove?'Attack-move: click a destination · stops to fight':'Move: click a destination · disengages from combat'):units.length?units.map(u=>u.name).join(' + ')+' · Right-drag: form a line | Shift + right-click: queue':'Left-drag: box select · Shift: add · Space-drag: pan';
     if(buildMode)$('command-hint').textContent='Place '+Campaign.BUILDINGS[buildMode].name+' · controlled land near roads · Esc cancels';else if(rallyMode)$('command-hint').textContent='Click a rally point for newly produced troops · Esc cancels';else if(batteryMode)$('command-hint').textContent='Click bombardment target · 3,200 m range · 240 m blast · 18 materiel per volley';else if(fireMode)$('command-hint').textContent='Click an artillery target · infrastructure in the blast can be destroyed';
     $('fire-mission').disabled=!units.some(u=>u.type==='artillery');$('fire-mission').setAttribute('aria-pressed',String(fireMode));
@@ -326,15 +335,16 @@
   $('save-game').onclick=()=>{try{localStorage.setItem('living-frontiers-grand-v1',Campaign.serialize(state));feedback('Campaign saved on this browser.');}catch(error){feedback('Save failed: '+error.message);}updateUI();};
   $('load-game').onclick=()=>{try{const saved=localStorage.getItem('living-frontiers-grand-v1');if(!saved)throw Error('No saved campaign yet.');adopt(Campaign.restore(saved));feedback('Campaign restored and paused. Resume when ready.');}catch(error){feedback('Load failed: '+error.message);}updateUI();};
   function collapseConsole(collapsed){document.querySelector('.command-panel').classList.toggle('is-collapsed',collapsed);$('console-body').hidden=collapsed;$('toggle-console').textContent=collapsed?'Open':'Close';$('toggle-console').setAttribute('aria-expanded',String(!collapsed));$('toggle-console').setAttribute('aria-label',(collapsed?'Expand':'Collapse')+' command console');}
-  $('cancel-order').onclick=()=>{cancelMode();feedback('Order cancelled. Selection kept.');updateUI();};$('help-button').onclick=()=>$('controls-help').showModal();$('close-help').onclick=()=>$('controls-help').close();
+  $('cancel-order').onclick=()=>{cancelMode();feedback('Order cancelled. Selection kept.');updateUI();};$('effects-quality').onchange=()=>{paintNeeded=true;};$('help-button').onclick=()=>$('controls-help').showModal();$('close-help').onclick=()=>$('controls-help').close();
   $('toggle-console').onclick=()=>collapseConsole(!$('console-body').hidden);
   for(const button of document.querySelectorAll('.panel-tabs [data-panel]'))button.onclick=()=>{cancelMode();collapseConsole(button.dataset.panel==='army');document.querySelector('.game').dataset.panel=button.dataset.panel;for(const b of document.querySelectorAll('.panel-tabs [data-panel]'))b.setAttribute('aria-pressed',String(b===button));updateUI();};
-  const buildGlyphs={barracks:'⚑',garage:'▰',battery:'⌖',trench:'⌑',supply:'▣',industry:'⚙',refinery:'◈'};
-  for(const [type,d] of Object.entries(Campaign.BUILDINGS)){const button=document.createElement('button');button.className='build-icon';button.innerHTML='<span aria-hidden="true">'+buildGlyphs[type]+'</span><strong>'+d.name+'</strong><small>'+d.cost+' materiel · '+d.time+'s</small>';button.title=d.name+' · '+d.cost+' materiel';button.setAttribute('aria-label',button.title);button.onclick=()=>{$('build-kind').value=type;$('place-building').click();collapseConsole(true);canvas.focus({preventScroll:true});};$('build-icons').appendChild(button);}
+  function modelThumbnail(target,type,size=1){const c=target.getContext('2d');c.clearRect(0,0,target.width,target.height);modelRenderer.draw(c,type,target.width/2,target.height*.7,size,{side:'blue',angle:-.25,detail:true});}
+  let portraitKey='';
+  function drawPortrait(unit,count){const key=(unit?.type||'hq')+':'+count;if(key===portraitKey)return;portraitKey=key;const target=$('unit-portrait');modelThumbnail(target,unit?.type||'hq',unit?.type==='infantry'?9:unit?5.2:1);target.setAttribute('aria-label',unit?unit.type+' formation':'Regional headquarters');}
+  for(const [type,d] of Object.entries(Campaign.BUILDINGS)){const button=document.createElement('button');button.className='build-icon';const preview=document.createElement('canvas');preview.width=140;preview.height=85;preview.setAttribute('aria-hidden','true');modelThumbnail(preview,type,type==='trench'?.55:1);const name=document.createElement('strong'),cost=document.createElement('small');name.textContent=d.name;cost.textContent=d.cost+' materiel / '+d.time+'s';button.append(preview,name,cost);button.title=d.name+' · '+d.cost+' materiel';button.setAttribute('aria-label',button.title);button.onclick=()=>{$('build-kind').value=type;$('place-building').click();collapseConsole(true);canvas.focus({preventScroll:true});};$('build-icons').appendChild(button);}
   const actionGlyphs={'move-order':'➜','attack-move':'⚔','hold':'■','retreat':'↶','focus-unit':'◎','clear-selection':'×','fire-mission':'⌖','battery-target':'⌖','battery-stop':'■','set-rally':'⚑','cancel-queue':'×','upgrade-building':'↑','repair-building':'⚒','strike-building':'✹','inspect-region':'◎','bombard':'✹','repair-factory':'⚒'};
   for(const [id,glyph] of Object.entries(actionGlyphs)){$(id).classList.add('icon-action');$(id).dataset.glyph=glyph;}
-  for(const tab of document.querySelectorAll('.panel-tabs [data-panel]')){const labels={army:['⚑','Troops'],build:['⚙','Economy & construction'],intel:['◉','Region intelligence']},[icon,label]=labels[tab.dataset.panel];tab.textContent=icon+' '+(tab.dataset.panel==='army'?'Army':tab.dataset.panel==='build'?'Build':'Region');tab.title=label;tab.setAttribute('aria-label',label);}
-  const resourceIcons=['▣','◈','♟','♥','◷'];document.querySelectorAll('.resources>span').forEach((el,i)=>{const label=el.firstChild.textContent.trim();el.title=label;el.setAttribute('aria-label',label);el.firstChild.textContent=label+' ';});
+  for(const tab of document.querySelectorAll('.panel-tabs [data-panel]'))tab.setAttribute('aria-label',({army:'Troops',build:'Economy & construction',intel:'Region intelligence'})[tab.dataset.panel]);
   $('unit-picker').onchange=e=>{if(e.target.value)select(e.target.value);canvas.focus({preventScroll:true});};
   for(const [id,d] of Object.entries(Campaign.BUILDINGS)){const o=document.createElement('option');o.value=id;o.textContent=d.name+' · '+d.cost+' materiel';$('build-kind').appendChild(o);}
   function showBuildPage(manage){document.querySelector('.build-panel').dataset.page=manage?'manage':'place';$('show-construction').setAttribute('aria-pressed',String(!manage));$('show-management').setAttribute('aria-pressed',String(manage));}
@@ -380,7 +390,7 @@
   document.addEventListener('visibilitychange',()=>{last=0;accumulator=0;});
   network.onSessionEnded=()=>{networkInitialized=false;state.paused=true;paintNeeded=true;};
   network.onNotice=message=>feedback(message);
-  network.onSolo=()=>{networkInitialized=false;for(const id of ['pause','save-game','load-game','restart'])$(id).disabled=false;adopt(Campaign.create({terrainSeed:TerrainField.randomSeed()}));state.paused=true;$('network-menu').textContent='Play / Multiplayer';if(!$('campaign-setup').open)$('campaign-setup').showModal();};
+  network.onSolo=()=>{networkInitialized=false;for(const id of ['pause','save-game','load-game','restart'])$(id).disabled=false;adopt(Campaign.create({terrainSeed:TerrainField.randomSeed()}));state.paused=true;$('network-menu').textContent='Play';if(!$('campaign-setup').open)$('campaign-setup').showModal();};
   network.onSnapshot=snapshot=>{
     const first=!networkInitialized;const next=first?Campaign.create({terrainSeed:snapshot.terrainSeed}):state;
     network.mergeSnapshot(next,snapshot);
@@ -411,7 +421,7 @@
       accumulator+=elapsed;
       while(accumulator>=.05){if(typeof window==='undefined'||!window.Multiplayer?.active)Campaign.step(state,.05);accumulator-=.05;}
       advanceCamera(now);
-      if((!state.paused&&!state.winner)||cameraTween||paintNeeded){render(elapsed);paintNeeded=false;}
+      if((!state.paused&&!state.winner)||cameraTween||paintNeeded){paintNeeded=false;render(elapsed);}
       updateFrameCounters(now,elapsed);
     }
     requestAnimationFrame(frame);

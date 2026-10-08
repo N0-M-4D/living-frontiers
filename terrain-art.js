@@ -1,13 +1,15 @@
 /* Static terrain illustration shared by the campaign and visual study. */
 (function(root,factory){const api=factory();if(typeof module==='object'&&module.exports)module.exports=api;else root.TerrainArt=api;})(globalThis,function(){
  'use strict';
- function color(map,x,y){
+ function color(map,x,y,precise=false){
   const z=map.height(x,y)/map.SCALE,g=map.gradient?.(x,y)||{x:0,y:0},slope=Math.hypot(g.x,g.y);
   const light=Math.max(-.28,Math.min(.28,(-g.x*.6-g.y*.8)*1.05));
   let hue=83+Math.max(0,1-z/65)*8,sat=21,l=48+light*53-Math.max(0,1-z/35)*4;
+  // Broad continuous vegetation variation avoids block boundaries from gameplay terrain cells.
+  const v=Math.sin(x/map.SCALE/83+Math.sin(y/map.SCALE/137))*Math.cos(y/map.SCALE/109);hue+=v*3;l+=v*1.5;
   if(z>100){const rock=Math.min(1,(z-100)/100+slope*.4);hue=83-rock*21;sat-=rock*12;l+=rock*8;}
   // Half-percent lightness steps retain relief while sharing canvas submissions.
-  return `hsl(${Math.round(hue)} ${Math.round(sat)}% ${Math.round(l*2)/2}%)`;
+  return precise?`hsl(${hue} ${sat}% ${l}%)`:`hsl(${Math.round(hue)} ${Math.round(sat)}% ${Math.round(l*2)/2}%)`;
  }
  function appendPolygon(ctx,points){points.forEach((p,i)=>i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y));ctx.closePath();}
  function fillPolygons(ctx,polygons,fill){ctx.beginPath();for(const points of polygons)appendPolygon(ctx,points);ctx.fillStyle=fill;ctx.fill();ctx.strokeStyle=fill;ctx.lineWidth=1.4;ctx.stroke();}
@@ -54,5 +56,5 @@
   for(const [fill,polygons] of groups)fillPolygons(ctx,polygons,fill);
   drawContours(ctx,contours);return ground.length;
  }
- return {paint};
+ return {paint,color};
 });
