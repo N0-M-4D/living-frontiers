@@ -176,7 +176,7 @@
   }
   let groundDetail=GroundDetail.create(G,project);
   function drawGroundDetail(){
-    paintNeeded=groundDetail.draw(ctx,[unproject(0,0),unproject(width,0),unproject(0,height),unproject(width,height)],scale,Math.min(devicePixelRatio||1,1.5))||paintNeeded;
+    paintNeeded=groundDetail.draw(ctx,[unproject(0,0),unproject(width,0),unproject(0,height),unproject(width,height)],scale,Math.min(devicePixelRatio||1,1.5),{moving:cameraMoving})||paintNeeded;
     ctx.save();ctx.globalAlpha=F.clamp((scale-1)/.65,0,1);
     for(const f of detailFields){if(!onScreen(f,200))continue;poly(ctx,[project(f.x,f.y),project(f.x+f.w,f.y),project(f.x+f.w,f.y+f.d),project(f.x,f.y+f.d)],f.color,'#74794f',1/S);for(let j=5;j<f.d;j+=10)path(ctx,[project(f.x,f.y+j),project(f.x+f.w,f.y+j)],'#66764565',.8/S);}
     ctx.restore();
@@ -196,7 +196,11 @@
   function drawRoute(u){let cached=routeVisuals.get(u);const key=u.path.map(p=>p.x+','+p.y).join(';');if(!cached||cached.key!==key){const points=sampled(u.path);cachePath(points);cached={key,points};routeVisuals.set(u,cached);}if(u.path.length)path(ctx,sampled([u,u.path[0]]),'#f6f1d4',2/scale,[5/scale,5/scale]);if(cached.points.length)path(ctx,cached.points,'#f6f1d4',2/scale,[5/scale,5/scale]);}
   function drawWorldImage(image){const x=Math.max(0,-offset.x/scale),y=Math.max(0,-offset.y/scale),right=Math.min(6400,(width-offset.x)/scale),bottom=Math.min(3600,(height-offset.y)/scale);if(right<=x||bottom<=y)return;const sx=image.width/6400,sy=image.height/3600;ctx.drawImage(image,x*sx,y*sy,(right-x)*sx,(bottom-y)*sy,x,y,right-x,bottom-y);}
   function previewPlan(){const units=selectedUnits();if(!units.length||!hoverWorld)return [];if(pointer?.button===2&&pointer.dragged&&!pointer.pan&&!activeMode())return F.formationPlan(units,pointer.world,hoverWorld);return orderMode&&!pointer?.pan?F.formationPlan(units,hoverWorld):[];}
+  let renderedCamera=null,cameraMoving=false;
   function render(elapsed){
+    cameraMoving=!renderedCamera||renderedCamera.scale!==scale||renderedCamera.x!==offset.x||renderedCamera.y!==offset.y;
+    renderedCamera={scale,x:offset.x,y:offset.y};
+    modelRenderer.beginFrame(scale/S*Math.min(devicePixelRatio||1,1.5),{moving:cameraMoving});
     if(cursorScreen)hoverWorld=unproject(cursorScreen.x,cursorScreen.y);updateVisuals(elapsed);updateFront();updateFogVisual();
     const dpr=Math.min(devicePixelRatio||1,1.5);ctx.setTransform(dpr,0,0,dpr,0,0);ctx.fillStyle='#94b6b0';ctx.fillRect(0,0,width,height);
     ctx.save();ctx.translate(offset.x,offset.y);ctx.scale(scale,scale);drawWorldImage(ground);
@@ -241,6 +245,7 @@
     for(const u of state.units)if(u.hp>0){const p=markerPositions.get(u.id);if(!p)continue;const anchor=screen(u.x,u.y);path(ctx,[anchor,p],u.side==='blue'?'#397f9190':'#ad604c90',1);ctx.font='600 10px Segoe UI';ctx.textAlign='center';ctx.fillStyle=selection.has(u.id)?'#f9e3a7':u.side==='blue'?'#edf4e6':'#f8e2d2';ctx.beginPath();ctx.roundRect(p.x-15,p.y-9,30,18,3);ctx.fill();ctx.strokeStyle=u.side==='blue'?'#2d6b7d':'#9a4d43';ctx.lineWidth=1;ctx.stroke();ctx.fillStyle=ctx.strokeStyle;ctx.fillText(u.side==='blue'?(u.label||u.id.toUpperCase()):u.militia?'◇':u.type==='artillery'?'▲':'◆',p.x,p.y+3);ctx.fillStyle='#294a3f45';ctx.fillRect(p.x-15,p.y+11,30,3);ctx.fillStyle=u.side==='blue'?'#397f91':'#ad604c';ctx.fillRect(p.x-15,p.y+11,30*u.hp/u.maxHp,3);}
     if(pointer?.dragged&&!pointer.pan&&pointer.button===0){const b=canvas.getBoundingClientRect(),x=Math.min(pointer.x,pointer.lastX)-b.left,y=Math.min(pointer.y,pointer.lastY)-b.top,w=Math.abs(pointer.lastX-pointer.x),h=Math.abs(pointer.lastY-pointer.y);ctx.fillStyle='#83c6db33';ctx.fillRect(x,y,w,h);ctx.strokeStyle='#e6f8ff';ctx.lineWidth=1.5;ctx.strokeRect(x,y,w,h);}
     if(hoverWorld&&!pointer?.dragged){const r=Campaign.at(state,hoverWorld.x,hoverWorld.y);ctx.font='11px Segoe UI';ctx.textAlign='left';ctx.fillStyle='#203e38';ctx.fillText(r?`${r.name} · ${G.terrain(hoverWorld.x,hoverWorld.y)} · ${Math.round(G.height(hoverWorld.x,hoverWorld.y))} m${orderMode?' · click to order':''}`:'Sea · cannot move here',20,height-65);}
+    paintNeeded=modelRenderer.needsRefinement||paintNeeded;
   }
   function rotateTrench(direction){trenchAngle=(trenchAngle+direction*Math.PI/12+Math.PI*2)%(Math.PI*2);updateUI();}
   $('rotate-trench').onclick=()=>rotateTrench(1);
@@ -338,7 +343,7 @@
   $('cancel-order').onclick=()=>{cancelMode();feedback('Order cancelled. Selection kept.');updateUI();};$('effects-quality').onchange=()=>{paintNeeded=true;};$('help-button').onclick=()=>$('controls-help').showModal();$('close-help').onclick=()=>$('controls-help').close();
   $('toggle-console').onclick=()=>collapseConsole(!$('console-body').hidden);
   for(const button of document.querySelectorAll('.panel-tabs [data-panel]'))button.onclick=()=>{cancelMode();collapseConsole(button.dataset.panel==='army');document.querySelector('.game').dataset.panel=button.dataset.panel;for(const b of document.querySelectorAll('.panel-tabs [data-panel]'))b.setAttribute('aria-pressed',String(b===button));updateUI();};
-  function modelThumbnail(target,type,size=1){const c=target.getContext('2d');c.clearRect(0,0,target.width,target.height);modelRenderer.draw(c,type,target.width/2,target.height*.7,size,{side:'blue',angle:-.25,detail:true});}
+  function modelThumbnail(target,type,size=1){const c=target.getContext('2d');c.clearRect(0,0,target.width,target.height);modelRenderer.draw(c,type,target.width/2,target.height*.7,size,{side:'blue',angle:-.25,detail:true,immediate:true});}
   let portraitKey='';
   function drawPortrait(unit,count){const key=(unit?.type||'hq')+':'+count;if(key===portraitKey)return;portraitKey=key;const target=$('unit-portrait');modelThumbnail(target,unit?.type||'hq',unit?.type==='infantry'?9:unit?5.2:1);target.setAttribute('aria-label',unit?unit.type+' formation':'Regional headquarters');}
   for(const [type,d] of Object.entries(Campaign.BUILDINGS)){const button=document.createElement('button');button.className='build-icon';const preview=document.createElement('canvas');preview.width=140;preview.height=85;preview.setAttribute('aria-hidden','true');modelThumbnail(preview,type,type==='trench'?.55:1);const name=document.createElement('strong'),cost=document.createElement('small');name.textContent=d.name;cost.textContent=d.cost+' materiel / '+d.time+'s';button.append(preview,name,cost);button.title=d.name+' · '+d.cost+' materiel';button.setAttribute('aria-label',button.title);button.onclick=()=>{$('build-kind').value=type;$('place-building').click();collapseConsole(true);canvas.focus({preventScroll:true});};$('build-icons').appendChild(button);}

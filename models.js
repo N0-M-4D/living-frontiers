@@ -299,27 +299,43 @@
   }
   function bounds(mesh){let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;for(const face of mesh)for(const v of face.points){const p=project(v);minX=Math.min(minX,p.x);maxX=Math.max(maxX,p.x);minY=Math.min(minY,p.y);maxY=Math.max(maxY,p.y);}return {minX,minY,maxX,maxY};}
   function paintMesh(ctx,mesh){for(const face of mesh){ctx.beginPath();face.points.forEach((v,i)=>{const p=project(v);if(i)ctx.lineTo(p.x,p.y);else ctx.moveTo(p.x,p.y);});ctx.closePath();ctx.fillStyle=face.color;ctx.fill();}}
-  const MAX_BYTES=16*1024*1024,MAX_ENTRIES=160;
+  const MAX_BYTES=16*1024*1024,MAX_ENTRIES=512;
   function createRenderer(makeCanvas=()=>document.createElement('canvas')){
-    const cache=new Map();let bytes=0,hits=0,misses=0;
+    const cache=new Map(),fallbacks=new Map();let bytes=0,hits=0,misses=0,pixelDensity=4,managed=false,moving=false,spent=0,built=0,pending=false;
+    const densityTier=n=>[.5,.75,1,1.5,2,3,4].find(d=>d>=n)||4;
+    function beginFrame(density,{moving:motion=false}={}){pixelDensity=densityTier(density);managed=true;moving=motion;spent=0;built=0;pending=false;}
+    function proxy(ctx,type,x,y,scale,opts){
+      // A missing sprite retains a faction-coloured footprint while its art is prepared.
+      const base=sizes[type]||sizes.house,w=opts.w||base[0],d=opts.d||base[1],h=opts.h||base[2],c=Math.cos(opts.angle),s=Math.sin(opts.angle),colors=opts.state==='ruined'?rubber:faction(opts.side);
+      const point=(px,py,pz)=>{const p=project([px*c-py*s,px*s+py*c,pz]);return {x:x+p.x*scale,y:y+p.y*scale};};
+      for(const [vertices,color] of [[[[0,0,h],[w/2,-d/2,0],[w/2,d/2,0]],colors[1]],[[[0,0,h],[w/2,d/2,0],[-w/2,d/2,0]],colors[2]],[[[0,0,h],[-w/2,d/2,0],[-w/2,-d/2,0]],colors[0]]]){
+        ctx.beginPath();vertices.forEach((p,i)=>{const q=point(...p);if(i)ctx.lineTo(q.x,q.y);else ctx.moveTo(q.x,q.y);});ctx.closePath();ctx.fillStyle=color;ctx.fill();
+      }
+    }
     function draw(ctx,type,x,y,unitScale=1,options={}){
       const steps=type==='infantry'?16:32,quantize=a=>Math.round((a||0)*steps/TAU)*TAU/steps;
       const rotatingUnit=['tank','mech','artillery','infantry'].includes(type);
       const opts={side:options.side||'blue',state:options.state||'intact',detail:options.detail!==false,angle:rotatingUnit?quantize(options.angle):(options.angle||0),turret:quantize(options.turret),w:options.w,d:options.d,h:options.h,pose:options.pose};
-      const key=type+JSON.stringify(opts);let item=cache.get(key);
-      if(item){hits++;cache.delete(key);cache.set(key,item);}else{
-        misses++;const mesh=createMesh(type,opts),b=bounds(mesh),pad=2;
-        // Higher close-up resolution for small models; large structures stay bounded.
-        const density=Math.min(4,512/Math.max(b.maxX-b.minX+pad*2,b.maxY-b.minY+pad*2));
-        const surface=makeCanvas();surface.width=Math.ceil((b.maxX-b.minX+pad*2)*density);surface.height=Math.ceil((b.maxY-b.minY+pad*2)*density);
-        const c=surface.getContext('2d');c.setTransform(density,0,0,density,(-b.minX+pad)*density,(-b.minY+pad)*density);paintMesh(c,mesh);
-        item={surface,x:b.minX-pad,y:b.minY-pad,w:surface.width/density,h:surface.height/density,bytes:surface.width*surface.height*4};
-        while(cache.size&&(bytes+item.bytes>MAX_BYTES||cache.size>=MAX_ENTRIES)){const first=cache.keys().next().value;bytes-=cache.get(first).bytes;cache.delete(first);}
-        cache.set(key,item);bytes+=item.bytes;
-      }
-      ctx.drawImage(item.surface,x+item.x*unitScale,y+item.y*unitScale,item.w*unitScale,item.h*unitScale);
+      const key=type+JSON.stringify(opts),fallbackKey=type+':'+opts.side+':'+opts.state,targetDensity=options.immediate?4:pixelDensity;
+      let item=cache.get(key);const needsUpgrade=item&&item.density+1e-6<Math.min(targetDensity,item.maxDensity);
+      if(!item||needsUpgrade){
+        pending=true;
+        // Camera motion reuses existing sprites. Cold art has both a count and CPU budget.
+        if((!needsUpgrade||!moving||options.immediate)&&(!managed||options.immediate||(spent<3&&built<2))){
+          const start=performance.now(),mesh=createMesh(type,opts),b=bounds(mesh),pad=2,maxDensity=512/Math.max(b.maxX-b.minX+pad*2,b.maxY-b.minY+pad*2),density=Math.min(targetDensity,maxDensity);
+          const surface=makeCanvas();surface.width=Math.ceil((b.maxX-b.minX+pad*2)*density);surface.height=Math.ceil((b.maxY-b.minY+pad*2)*density);
+          const c=surface.getContext('2d');c.setTransform(density,0,0,density,(-b.minX+pad)*density,(-b.minY+pad)*density);paintMesh(c,mesh);
+          if(item){bytes-=item.bytes;cache.delete(key);}
+          item={surface,x:b.minX-pad,y:b.minY-pad,w:surface.width/density,h:surface.height/density,density,maxDensity,bytes:surface.width*surface.height*4};
+          while(cache.size&&(bytes+item.bytes>MAX_BYTES||cache.size>=MAX_ENTRIES)){const first=cache.keys().next().value;bytes-=cache.get(first).bytes;cache.delete(first);}
+          cache.set(key,item);fallbacks.set(fallbackKey,key);bytes+=item.bytes;misses++;built++;spent+=performance.now()-start;
+        }
+      }else hits++;
+      if(item){cache.delete(key);cache.set(key,item);}else item=cache.get(fallbacks.get(fallbackKey));
+      if(item)ctx.drawImage(item.surface,x+item.x*unitScale,y+item.y*unitScale,item.w*unitScale,item.h*unitScale);
+      else proxy(ctx,type,x,y,unitScale,opts);
     }
-    return {draw,stats:()=>({entries:cache.size,bytes,hits,misses,maxBytes:MAX_BYTES}),clear(){cache.clear();bytes=0;}};
+    return {draw,beginFrame,get needsRefinement(){return pending;},stats:()=>({entries:cache.size,bytes,hits,misses,maxBytes:MAX_BYTES,maxEntries:MAX_ENTRIES}),clear(){cache.clear();fallbacks.clear();bytes=0;pending=false;}};
   }
   return {catalogue,sizes,createMesh,project,bounds,paintMesh,createRenderer};
 });
