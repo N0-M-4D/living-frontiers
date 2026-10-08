@@ -12,6 +12,10 @@ python -m http.server 8765 --bind 127.0.0.1
 
 Open http://127.0.0.1:8765/ and choose a doctrine and campaign length. Refresh the existing tab after source changes. Save and Load store one campaign in this browser's local storage; loading pauses the game. Changing browser, origin or clearing site data loses that local save.
 
+## Visual direction study
+
+An optional [interactive visual prototype](preview/visual-lab.html) explores the proposed terrain, troop silhouettes, command deck and artillery effects. It is a scripted approval scene, separate from the live campaign. See the [RTS research and twelve-domain optimisation audit](docs/visual-research.md) for references, findings and the proposed integration order.
+
 ## Commands
 
 The game uses an olive-metal and brass RTS HUD: a top resource strip, a continuous bottom command area, and a clickable minimap with troops and camera footprint. The minimap redraws at most four times per second. Click/drag it to navigate, or use arrow keys while it has keyboard focus. The minimap is hidden on narrow screens. The bottom command bar always shows troop selection and named orders. Build opens a labelled catalogue with costs and build times; Place new and Manage buildings separate construction from recruitment and repair. Region opens capture and infrastructure information. Controls ? opens the field manual. Resource labels remain visible.
