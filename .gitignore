@@ -13,3 +13,8 @@ __pycache__/
 .env
 .env.*
 !.env.example
+
+# Server dependencies and private match checkpoints
+node_modules/
+.checkpoints/
+dist/

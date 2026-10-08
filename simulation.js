@@ -140,7 +140,7 @@
     for (const u of state.units) {
       if (u.hp <= 0) { u.moving = false; continue; }
       u.cooldown = Math.max(0, u.cooldown - dt); u.moving = false;
-      if (u.side === 'red') {
+      if ((!state.multiplayer && u.side === 'red') || (state.multiplayer && u.side === 'neutral')) {
         u.aiTimer -= dt;
         if (u.aiTimer <= 0) {
           u.aiTimer = .8;
@@ -151,7 +151,7 @@
           else { u.path = []; u.order = 'hold'; }
         }
       }
-      if(u.side==='blue'&&!u.path.length&&u.commandQueue?.length){
+      if((u.side==='blue'||state.multiplayer&&u.side==='red')&&!u.path.length&&u.commandQueue?.length){
         const revision=state.map?.revision?.()??'static';
         if(u.blockedQueueRevision!==revision){const next=u.commandQueue[0],planned=routeFor(state,u,next.destination);if(planned.length){u.path=planned;u.order=next.order;u.targetId=null;u.commandQueue.shift();delete u.blockedQueueRevision;}else u.blockedQueueRevision=revision;}
       }
@@ -166,8 +166,8 @@
       } else if (u.path.length) { move(state, u, dt); u.turret = u.angle; u.status = retreating ? 'Withdrawing' : relocating ? 'Moving · disengaging from combat' : 'Advancing'; }
       else { u.velocity=0;u.status = u.commandQueue?.length ? 'Queued route blocked · awaiting crossing' : u.order === 'repair' ? 'Refitting at depot' : u.fireBlocked ? 'Ridge blocks direct fire · reposition or use artillery' : 'Holding position'; }
       if (u.order === 'repair' && distance(u, u.repairTarget||state.depot) < 45 && u.hp < u.maxHp) {
-        const healing = Math.min(7 * dt, u.maxHp - u.hp, state.materiel / .6);
-        u.hp += healing; state.materiel -= healing * .6;
+        const healing = Math.min(7 * dt, u.maxHp - u.hp, state[u.side==='red'&&state.multiplayer?'enemyFunds':'materiel'] / .6);
+        u.hp += healing; state[u.side==='red'&&state.multiplayer?'enemyFunds':'materiel'] -= healing * .6;
         u.status = state.materiel < .1 ? 'Awaiting materiel' : 'Repairing at depot';
         if (u.hp >= u.maxHp - .01) { u.order = 'hold'; u.status = 'Repaired · ready for orders'; }
       }
@@ -181,9 +181,9 @@
       else if (!friendly) factory.capture = Math.max(0, factory.capture - dt * 3);
       if (factory.capture >= 100) { factory.owner = 'blue'; if (!state.facilities) state.winner = 'blue'; emit(state, (factory.regionName||state.regionName||'Greywater')+' secured. Production is now under your control.'); }
     }
-    if (factory.owner === 'blue') {
+    if (factory.owner === 'blue' && !state.multiplayer) {
       state.materiel += dt * (factory.production ?? 1.4) * factory.hp / factory.maxHp;
-      if (factory.repair && factory.hp < factory.maxHp) {
+      if (factory.repair && factory.hp < factory.maxHp && !state.multiplayer) {
         const healed = Math.min(8 * dt, factory.maxHp - factory.hp, state.materiel / .8);
         factory.hp += healed; state.materiel -= healed * .8;
         if (factory.hp >= factory.maxHp) factory.repair = false;

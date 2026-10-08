@@ -7,10 +7,11 @@ A build-free JavaScript / Canvas ground-war game. One continuously zoomable coun
 From this directory:
 
 ```powershell
-python serve.py
+npm ci
+npm start
 ```
 
-Open http://127.0.0.1:8765/ and choose a doctrine and campaign length. Refresh the existing tab after source changes. Save and Load store one campaign in this browser's local storage; loading pauses the game. Changing browser, origin or clearing site data loses that local save.
+Requires Node.js 22 or newer. Open http://127.0.0.1:8765/ and choose Solo, host a private/public match, or join by invite code. Both players ready up before the host starts. The server listens on all interfaces by default; set `HOST=127.0.0.1` for localhost-only testing. See [online play and free deployment](docs/online-play.md). Solo offers doctrine and campaign length choices. Refresh the existing tab after source changes. Save and Load store one campaign in this browser's local storage; loading pauses the game. Changing browser, origin or clearing site data loses that local save.
 
 ## Visual direction study
 
@@ -80,7 +81,7 @@ Tests cover combat, continuous routes, movement/disengagement, capture persisten
 
 ## MVP boundaries
 
-This is a playable local single-player MVP, not a finished or fully balanced release. The map is fixed; replay choices currently come from doctrine, campaign length and strategy. Artwork is geometric and still needs an art pass. Units navigate as formations; buildings are not individual collision obstacles. Road sabotage currently means destroying bridge crossings, not arbitrary road segments. No multiplayer, individual vehicle physics, audio mix or air force is included. Aircraft remain deferred until after the ground V1.0 milestone. Full-match balance and sustained performance on the player's machine remain playtest gates.
+This is a playable solo MVP with experimental two-player online matches, not a finished or fully balanced release. Coastlines and province layouts are authored; seeded terrain, doctrine, campaign length and strategy provide variation. Artwork is geometric and still needs an art pass. Units navigate as formations; buildings are not individual collision obstacles. Road sabotage currently means destroying bridge crossings, not arbitrary road segments. Online matches currently support two human commanders with neutral militia, equal starting armies and independent fog. There are no persistent online saves, accounts, ranked matchmaking, individual vehicle physics, audio mix or air force. Aircraft remain deferred until after the ground V1.0 milestone. Full-match balance and sustained performance on the player's machine remain playtest gates.
 
 `geography.js` is the base terrain/navigation template; `world.js` builds the enlarged country. `simulation.js` handles movement and combat, `territory.js` occupation, `campaign.js` economy/logistics/AI/saves, `models.js` the shared geometric art and bounded sprite cache, and `game.js` camera, rendering and interface. Run `node models.test.cjs` for the model and cache checks.
 

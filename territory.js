@@ -11,12 +11,12 @@
   }
   function step(state,dt){const t=state.territory;t.clock+=dt;if(t.clock<.25)return;const elapsed=t.clock;t.clock=0;const alive=state.units.filter(u=>u.hp>0);
     const cache=cacheFor(t);cache.blue.fill(0);cache.red.fill(0);cache.invaders.fill(0);let changed=false;
-    for(const u of alive){const power=.4+.6*u.hp/u.maxHp,target=u.side==='blue'?cache.blue:cache.red;for(const point of footprint(cache,t,u,state.map)){target[point.i]+=power*point.weight;if(u.side==='red'&&!u.militia)cache.invaders[point.i]+=power*point.weight;}}
+    for(const u of alive){if(state.multiplayer&&u.side==='neutral')continue;const power=.4+.6*u.hp/u.maxHp,target=u.side==='blue'?cache.blue:cache.red;for(const point of footprint(cache,t,u,state.map)){target[point.i]+=power*point.weight;if(u.side==='red'&&!u.militia)cache.invaders[point.i]+=power*point.weight;}}
     for(let i=0;i<t.cells.length;i++){const cell=t.cells[i],blue=cache.blue[i],red=cache.red[i],previous=cell.owner,contested=blue>0&&red>0;if(contested!==cell.contested)changed=true;cell.contested=contested;
       if(!contested&&(blue||cache.invaders[i])){cell.value=Math.max(-1,Math.min(1,cell.value+(blue?1:-1)*elapsed*.4*Math.min(2,blue||red)));if(cell.value>=.65)cell.owner='blue';else if(cell.value<=-.65)cell.owner='red';}if(previous!==cell.owner)changed=true;
     }
     for(const r of state.regions){const cells=cache.regions.get(r.id),f=r.factory;r.ground={blue:cells.filter(c=>c.owner==='blue').length/cells.length,red:cells.filter(c=>c.owner==='red').length/cells.length};const nearby=alive.filter(u=>Math.hypot(u.x-f.x,u.y-f.y)<=TOWN_RADIUS),blue=nearby.some(u=>u.side==='blue'),red=nearby.some(u=>u.side==='red');
-      const side=blue&&!red?'blue':red&&!blue&&nearby.some(u=>u.side==='red'&&!u.militia)?'red':null;
+      const neutral=state.multiplayer&&nearby.some(u=>u.side==='neutral');const side=blue&&!red&&!neutral?'blue':red&&!blue&&!neutral&&nearby.some(u=>u.side==='red'&&!u.militia)?'red':null;
       if(side&&side!==f.owner&&r.ground[side]>=REQUIRED){if(r.capturing!==side){r.capturing=side;f.capture=0;}f.capture=Math.min(100,f.capture+elapsed*100/HOLD_SECONDS);r.captureStatus=(side==='blue'?'Capturing':'Enemy capturing')+' town';if(f.capture>=100){f.owner=side;r.owner=side;r.capturing=null;r.captureStatus=side==='blue'?'Region secured':'Enemy control';}}
       else {if(r.capturing){f.capture=0;r.capturing=null;}r.captureStatus=blue&&red?'Contested · clear the marked town zone':side&&side!==f.owner?'Hold 35% of ground · keep advancing':f.owner==='blue'?'Region secured':!blue?'Move troops into the marked town zone':'Hold the town';}
     }if(changed)t.revision++;

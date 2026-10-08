@@ -12,7 +12,7 @@
   <header class="topbar">
    <div class="identity"><span class="insignia" aria-hidden="true">◈</span><div><h1>Living Frontiers</h1><p>Arden campaign <span class="build">Grand campaign · MVP 0.5</span></p></div></div>
    <div class="resources"><span>Materiel <strong id="materiel">120</strong></span><span>Fuel <strong id="fuel">220</strong></span><span>Manpower <strong id="manpower">250</strong></span><span>Field strength <strong id="strength">100%</strong></span><span>Time <strong id="time">00:00</strong></span></div>
-   <div class="top-actions"><button id="help-button">Controls ?</button><button id="pause" aria-pressed="false">Pause</button><button id="save-game" class="quiet">Save</button><button id="load-game" class="quiet">Load</button><button id="restart" class="quiet">Restart</button></div>
+   <div class="top-actions"><button id="network-menu">Play / Multiplayer</button><button id="help-button">Controls ?</button><button id="pause" aria-pressed="false">Pause</button><button id="save-game" class="quiet">Save</button><button id="load-game" class="quiet">Load</button><button id="restart" class="quiet">Restart</button></div>
   </header>
   <div class="workspace">
    <section class="battlefield" aria-label="Battlefield">
@@ -54,16 +54,18 @@
   <p>At the time limit, accumulated territory score decides the winner. Aircraft arrive after ground V1.0.</p>
   <div class="setup-actions"><button id="begin-campaign">Begin campaign</button><button id="resume-campaign">Return to battlefield</button></div>
  </dialog>
- <script src="fog.js?v=audit-2"></script>
- <script src="projection.js?v=audit-2"></script>
- <script src="ground-detail.js?v=audit-2"></script>
- <script src="simulation.js?v=audit-2"></script>
- <script src="geography.js?v=audit-2"></script>
- <script src="terrain-art.js?v=audit-2"></script><script src="terrain.js?v=audit-2"></script><script src="world.js?v=audit-2"></script>
- <script src="territory.js?v=audit-2"></script>
- <script src="save-validation.js?v=audit-2"></script>
- <script src="campaign.js?v=audit-2"></script>
- <script src="models.js?v=audit-2"></script>
- <script src="game.js?v=audit-2"></script>
+<dialog id="multiplayer-menu" aria-labelledby="multiplayer-title"><span class="eyebrow">Living Frontiers · Command room</span><h2 id="multiplayer-title">Choose your campaign.</h2><p>Command solo, or challenge another commander in a private or public match.</p><button id="play-solo">Play Solo</button><div class="lobby-actions"><label><input type="checkbox" id="public-match"> List room publicly</label><button id="host-match">Host Match</button></div><label for="join-code">Private invite code</label><div class="lobby-actions"><input id="join-code" maxlength="12" autocapitalize="characters" placeholder="Room code"><button id="join-match">Join Code</button></div><button id="refresh-rooms">Public Rooms · refresh</button><div id="public-rooms"></div><section id="lobby-details" hidden><h3>Invite code: <strong id="room-code"></strong></h3><button id="copy-invite">Copy invite code</button><ul id="room-players"></ul><div class="lobby-actions"><button id="ready-match">Ready</button><button id="start-match">Start match</button></div></section><p id="network-status" role="status">Multiplayer connects when you host, join or browse public rooms.</p><button id="return-match" hidden>Return to match</button><button id="return-match" hidden>Return to match</button><button id="leave-match" hidden>Leave match</button></dialog>
+ <script src="fog.js?v=online-1"></script>
+ <script src="projection.js?v=online-1"></script>
+ <script src="ground-detail.js?v=online-1"></script>
+ <script src="simulation.js?v=online-1"></script>
+ <script src="geography.js?v=online-1"></script>
+ <script src="terrain-art.js?v=online-1"></script><script src="terrain.js?v=online-1"></script><script src="world.js?v=online-1"></script>
+ <script src="territory.js?v=online-1"></script>
+ <script src="save-validation.js?v=online-1"></script>
+ <script src="campaign.js?v=online-1"></script>
+ <script src="models.js?v=online-1"></script>
+ <script src="multiplayer-client.js?v=online-1"></script>
+ <script src="game.js?v=online-1"></script>
 </body>
 </html>

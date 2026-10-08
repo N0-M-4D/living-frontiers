@@ -14,11 +14,21 @@
   const scenery=[],detailRoads=[];
   let markerPositions=new Map();
   let attackMove=false,spaceHeld=false;
-  const visualCache=new Map();
+  const visualCache=new Map(),networkPositions=new Map();
+  function renderUnit(u){return network.active?{...u,...networkPositions.get(u.id)}:u;}
   const selection=new Set();
   let trenchAngle=0;
   let buildMode=null,rallyMode=false,fireMode=false,batteryMode=false,selectedBuilding=state.buildings[0]?.id,buildListKey='',recruitKey='',lastNotice='';
   state.paused=true;
+  const network=window.Multiplayer;
+  let networkInitialized=false;
+  function net(command){return network.command(command)?'Order sent.':'Connection unavailable.';}
+  const commandOriginal=F.command;F.command=(st,id,order,destination,options={})=>network.active&&st===state?network.command({type:'order',ids:[id],order,destination,queue:Boolean(options.queue)}):commandOriginal(st,id,order,destination,options);
+  for(const [method,type] of [['recruit','recruit'],['cancelQueue','cancelQueue'],['upgrade','upgrade'],['repair','repair'],['batteryOrder','battery']]){const original=Campaign[method];Campaign[method]=(st,id,value)=>network.active&&st===state?net({type,buildingId:id,...(method==='recruit'?{kind:value}:{point:value})}):original(st,id,value);}
+  const constructOriginal=Campaign.construct;Campaign.construct=(st,kind,point)=>network.active&&st===state?net({type:'construct',kind,point}):constructOriginal(st,kind,point);
+  const fireOriginal=F.fireMission;F.fireMission=(st,id,point)=>network.active&&st===state?net({type:'fireMission',ids:[id],point}):fireOriginal(st,id,point);
+  const bombardOriginal=F.bombard;F.bombard=(st,id,target)=>network.active&&st===state?net(target?.id?{type:'bombard',ids:[id],buildingId:target.id}:{type:'bombard',ids:[id],regionId:state.regions.find(r=>r.factory.x===target?.x&&r.factory.y===target?.y)?.id}):bombardOriginal(st,id,target);
+  const repairOriginal=F.repairFactory;F.repairFactory=(st,target)=>network.active&&st===state?net({type:'factoryRepair',regionId:state.regions.find(r=>r.factory.x===target?.x&&r.factory.y===target?.y)?.id}):repairOriginal(st,target);
   document.querySelector('.game').dataset.panel='army';
 
   function project(x,y,z){return Projection.project(x,y,z,G);}
@@ -84,6 +94,7 @@
   }
 
   function targetVisuals(u) {
+    u=renderUnit(u);
     const count = u.type==='infantry'?0:Math.max(1, Math.ceil((u.type === 'tank' ? 6 : u.type==='artillery'?3:4) * u.hp / u.maxHp)), visuals = [];
     const bridge = Math.abs(u.x - G.riverX(u.y)) < 75;
     for (let i = 0; i < count; i++) {
@@ -102,7 +113,7 @@
     return visuals;
   }
   function visualUnits(u){return visualCache.get(u.id)||targetVisuals(u);}
-  function updateVisuals(elapsed){if(scale/S<=.38){visualCache.clear();return;}const dt=state.paused?0:Math.max(0,Math.min(.05,elapsed));const blend=1-Math.exp(-12*dt);
+  function updateVisuals(elapsed){if(network.active){const blend=1-Math.exp(-12*Math.min(.05,elapsed));for(const u of state.units){const old=networkPositions.get(u.id);networkPositions.set(u.id,!old||Math.hypot(old.x-u.x,old.y-u.y)>500?{x:u.x,y:u.y}:{x:old.x+(u.x-old.x)*blend,y:old.y+(u.y-old.y)*blend});}for(const id of networkPositions.keys())if(!state.units.some(u=>u.id===id))networkPositions.delete(id);}if(scale/S<=.38){visualCache.clear();return;}const dt=state.paused?0:Math.max(0,Math.min(.05,elapsed));const blend=1-Math.exp(-12*dt);
     for(const u of state.units){if(u.hp<=0||!visible(u)||!onScreen(u,140)){visualCache.delete(u.id);continue;}const targets=targetVisuals(u),previous=visualCache.get(u.id);visualCache.set(u.id,targets.map((v,i)=>{const old=previous?.[i];if(!old||Math.hypot(old.x-v.x,old.y-v.y)>180)return v;const angle=old.angle===undefined?v.angle:old.angle+Math.atan2(Math.sin(v.angle-old.angle),Math.cos(v.angle-old.angle))*blend;return {...v,x:old.x+(v.x-old.x)*blend,y:old.y+(v.y-old.y)*blend,angle};}));}
   }
   function pickFormation(sx, sy) {
@@ -152,7 +163,7 @@
   function layoutMarkers(){
     const bins=new Map();markerPositions.clear();
     function collides(q){const x=Math.floor(q.x/36),y=Math.floor(q.y/32);for(let j=y-1;j<=y+1;j++)for(let i=x-1;i<=x+1;i++)for(const a of bins.get(i+','+j)||[])if(Math.abs(a.x-q.x)<36&&Math.abs(a.y-q.y)<32)return true;return false;}
-    for(const u of state.units){if(u.hp<=0||!visible(u)||!onScreen(u,0))continue;const anchor=screen(u.x,u.y,G.height(u.x,u.y)+39);let p=anchor;
+    for(const u of state.units){if(u.hp<=0||!visible(u)||!onScreen(u,0))continue;const position=renderUnit(u),anchor=screen(position.x,position.y,G.height(position.x,position.y)+39);let p=anchor;
       const free=q=>q.x>=16&&q.x<=width-16&&q.y>=12&&q.y<=height-20&&!collides(q);
       if(!free(p))search:for(let ring=1;ring<=8;ring++)for(const [dx,dy] of [[0,-1],[1,0],[-1,0],[0,1],[1,-1],[-1,-1],[1,1],[-1,1]]){const q={x:anchor.x+dx*36*ring,y:anchor.y+dy*32*ring};if(free(q)){p=q;break search;}}
       markerPositions.set(u.id,p);const key=Math.floor(p.x/36)+','+Math.floor(p.y/32);if(!bins.has(key))bins.set(key,[]);bins.get(key).push(p);
@@ -262,7 +273,7 @@
     $('region-summary').textContent=r.biome+' · '+(r.owner==='blue'?'Your territory':r.owner==='neutral'?'Neutral militia':'Enemy territory');
     $('materiel').textContent=Math.floor(state.materiel);$('strength').textContent=Math.round(all.reduce((sum,u)=>sum+u.hp,0)/state.units.filter(u=>u.side==='blue').reduce((n,u)=>n+u.maxHp,0)*100)+'%';$('time').textContent=String(Math.floor(state.time/60)).padStart(2,'0')+':'+String(Math.floor(state.time%60)).padStart(2,'0');
     $('pause').textContent=state.paused?'Resume':'Pause';$('pause').setAttribute('aria-pressed',String(state.paused));
-    if($('formation-list').children.length!==state.units.filter(u=>u.side==='blue').length)makeFormationButtons();
+    if([...$('formation-list').children].map(b=>b.dataset.unit).join(',')!==state.units.filter(u=>u.side==='blue').map(u=>u.id).join(','))makeFormationButtons();
     for(const button of $('formation-list').children){const unit=state.units.find(u=>u.id===button.dataset.unit);button.disabled=unit.hp<=0;button.setAttribute('aria-pressed',String(selection.has(unit.id)));button.querySelector('.health').textContent=Math.ceil(unit.hp/unit.maxHp*100)+'%';button.querySelector('small').textContent=unit.hp<=0?'Destroyed':(Campaign.at(state,unit.x,unit.y)?.name||'Border')+' · '+(Campaign.TROOPS[unit.type]?.name||unit.type);}
     $('unit-name').textContent=units.length>1?units.length+' companies selected':u?.name||'Select a company';$('unit-state').textContent=units.length>1?units.map(u=>u.name+' · '+u.status).join(' / '):(u?u.status+((u.commandQueue?.length||0)?' · '+u.commandQueue.length+' queued waypoints':''):null)||'Click blue troops or drag a selection box. Shift adds companies.';
     const terrain=u?G.terrain(u.x,u.y):'open',effect=F.terrainModifiers[terrain]||F.terrainModifiers.open;
@@ -299,7 +310,7 @@
   for(const mode of ['country','region','battle'])$('view-'+mode).onclick=()=>setView(mode);
   $('pause').onclick=()=>{state.paused=!state.paused;updateUI();};
   function adopt(next){
-    state=next;G=state.map;selection.clear();visualCache.clear();modelRenderer.clear();boundaryCache=new WeakMap();frontVertices.clear();
+    state=next;G=state.map;selection.clear();visualCache.clear();networkPositions.clear();modelRenderer.clear();boundaryCache=new WeakMap();frontVertices.clear();
     groundDetail=GroundDetail.create(G,project);fogState=null;fogRevision=-1;terrainBase();
     orderMode=false;buildMode=null;rallyMode=false;fireMode=false;batteryMode=false;destinationMark=null;frontTime=-1;frontSegments=[];updateFront();accumulator=0;
     selectedBuilding=state.buildings.find(b=>b.owner==='blue')?.id;buildListKey='';recruitKey='';lastNotice='';makeFormationButtons();setView('country');updateUI();
@@ -344,10 +355,10 @@
   $('set-rally').onclick=()=>{cancelMode();rallyMode=true;collapseConsole(true);updateUI();};
   $('cancel-queue').onclick=()=>{feedback(Campaign.cancelQueue(state,selectedBuilding));updateUI();};$('upgrade-building').onclick=()=>{feedback(Campaign.upgrade(state,selectedBuilding));updateUI();};$('repair-building').onclick=()=>{feedback(Campaign.repair(state,selectedBuilding));updateUI();};
   $('strike-building').onclick=()=>{const target=buildingTarget();feedback(selectedUnits().map(u=>F.bombard(state,u.id,target)).join(' '));updateUI();};
-  $('auto-retreat').onchange=e=>state.autoRetreat=e.target.checked;
+  $('auto-retreat').onchange=e=>network.active?net({type:'autoRetreat',enabled:e.target.checked}):state.autoRetreat=e.target.checked;
   $('fire-mission').onclick=()=>{const next=!fireMode;cancelMode();fireMode=next;updateUI();};
-  $('battery-target').onclick=()=>{cancelMode();batteryMode=true;collapseConsole(true);updateUI();};$('battery-stop').onclick=()=>{const b=buildingTarget();if(b?.owner==='blue')b.fireTarget=null;batteryMode=false;feedback('Bombardment stopped. Shells already fired remain in flight.');updateUI();};
-  function specialClick(sx,sy){const p=unproject(sx,sy);if(batteryMode){const message=Campaign.batteryOrder(state,selectedBuilding,p);feedback(message);if(message.startsWith('Bombardment ordered'))batteryMode=false;updateUI();return true;}if(buildMode){const result=Campaign.construct(state,buildMode,{...p,angle:trenchAngle});if(typeof result==='string')feedback(result);else{selectedBuilding=result.id;showBuildPage(true);buildMode=null;feedback(result.name+' under construction.');}updateUI();return true;}if(rallyMode){const b=buildingTarget();if(b&&state.map.route(b,p).length){b.rally=p;rallyMode=false;feedback('Rally point set.');}else feedback('Choose reachable land.');updateUI();return true;}if(fireMode){feedback(selectedUnits().filter(u=>u.type==='artillery').map(u=>F.fireMission(state,u.id,p)).join(' '));destinationMark={...p,time:state.time};fireMode=false;batteryMode=false;updateUI();return true;}return false;}
+  $('battery-target').onclick=()=>{cancelMode();batteryMode=true;collapseConsole(true);updateUI();};$('battery-stop').onclick=()=>{const b=buildingTarget();if(b?.owner==='blue'){if(network.active)net({type:'ceaseFire',buildingId:b.id});else b.fireTarget=null;}batteryMode=false;feedback('Bombardment stopped. Shells already fired remain in flight.');updateUI();};
+  function specialClick(sx,sy){const p=unproject(sx,sy);if(batteryMode){const message=Campaign.batteryOrder(state,selectedBuilding,p);feedback(message);if(message.startsWith('Bombardment ordered')||(network.active&&message==='Order sent.'))batteryMode=false;updateUI();return true;}if(buildMode){const result=Campaign.construct(state,buildMode,{...p,angle:trenchAngle});if(typeof result==='string'){feedback(result);if(network.active&&result==='Order sent.')buildMode=null;}else{selectedBuilding=result.id;showBuildPage(true);buildMode=null;feedback(result.name+' under construction.');}updateUI();return true;}if(rallyMode){const b=buildingTarget();if(b&&state.map.route(b,p).length){if(network.active)net({type:'rally',buildingId:b.id,point:p});else b.rally=p;rallyMode=false;feedback('Rally point set.');}else feedback('Choose reachable land.');updateUI();return true;}if(fireMode){feedback(selectedUnits().filter(u=>u.type==='artillery').map(u=>F.fireMission(state,u.id,p)).join(' '));destinationMark={...p,time:state.time};fireMode=false;batteryMode=false;updateUI();return true;}return false;}
   for(const r of state.regions){const option=document.createElement('option');option.value=r.id;option.textContent=r.name;$('region-picker').appendChild(option);}
   $('region-picker').onchange=e=>inspect(e.target.value);$('inspect-region').onclick=()=>setView('region');
   $('move-order').onclick=()=>{const next=!(orderMode&&!attackMove);cancelMode();orderMode=next;attackMove=false;updateUI();};$('attack-move').onclick=()=>{const next=!(orderMode&&attackMove);cancelMode();orderMode=next;attackMove=true;updateUI();};$('focus-unit').onclick=()=>{const units=selectedUnits();if(!units.length)return;const centre={x:units.reduce((n,u)=>n+u.x,0)/units.length,y:units.reduce((n,u)=>n+u.y,0)/units.length},points=units.map(u=>project(u.x,u.y));const zoom=units.length===1?Math.max(.9*S,scale):Math.min(1.2,(width-100)/(Math.max(...points.map(p=>p.x))-Math.min(...points.map(p=>p.x))+160),(height-200)/(Math.max(...points.map(p=>p.y))-Math.min(...points.map(p=>p.y))+160));const r=Campaign.at(state,centre.x,centre.y);if(r)state.selectedRegion=r.id;cameraTo(zoom,centre);};
@@ -364,9 +375,18 @@
   canvas.addEventListener('pointercancel',()=>{pointer=null;paintNeeded=true;});canvas.addEventListener('pointerleave',()=>{cursorScreen=null;hoverWorld=null;paintNeeded=true;});
   canvas.addEventListener('dblclick',e=>{const b=canvas.getBoundingClientRect(),point=canvasPoint(e),p=unproject(point.x,point.y),r=Campaign.at(state,p.x,p.y);if(r){inspect(r.id);cameraTo(Math.max(scale,.75),p);}});
   canvas.addEventListener('wheel',e=>{e.preventDefault();cameraTween=null;cursorScreen=canvasPoint(e);const x=cursorScreen.x,y=cursorScreen.y,old=scale;scale=F.clamp(scale*Math.exp(-e.deltaY*.0015),countryScale()*.8,3.2*S);offset.x=x-(x-offset.x)*scale/old;offset.y=y-(y-offset.y)*scale/old;const p=unproject(x,y),r=Campaign.at(state,p.x,p.y);if(r)state.selectedRegion=r.id;updateUI();},{passive:false});
-  window.addEventListener('keydown',e=>{if($('campaign-setup').open||$('controls-help').open||e.ctrlKey||e.metaKey||e.altKey||/^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName))return;if(e.code==='Space'){e.preventDefault();spaceHeld=true;}if(e.key.toLowerCase()==='r'&&buildMode==='trench'){e.preventDefault();rotateTrench(e.shiftKey?-1:1);}if(e.key.toLowerCase()==='p'&&!e.repeat)$('pause').click();if(/^[1-9]$/.test(e.key))select(String.fromCharCode(96+Number(e.key)),e.shiftKey);if(e.key.toLowerCase()==='f'){if(document.querySelector('.game').dataset.panel==='build'&&buildingTarget()?.type==='battery')$('battery-target').click();else $('fire-mission').click();}if(e.key.toLowerCase()==='a')$('attack-move').click();if(e.key.toLowerCase()==='h')$('hold').click();if(e.key.toLowerCase()==='m')$('move-order').click();if(e.key==='Escape'){if(activeMode()){cancelMode();feedback('Order cancelled. Selection kept.');}else{selection.clear();state.selected=null;collapseConsole(true);}updateUI();}});
+  window.addEventListener('keydown',e=>{if($('multiplayer-menu').open||$('campaign-setup').open||$('controls-help').open||e.ctrlKey||e.metaKey||e.altKey||/^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName))return;if(e.code==='Space'){e.preventDefault();spaceHeld=true;}if(e.key.toLowerCase()==='r'&&buildMode==='trench'){e.preventDefault();rotateTrench(e.shiftKey?-1:1);}if(e.key.toLowerCase()==='p'&&!e.repeat)$('pause').click();if(/^[1-9]$/.test(e.key))select(network.active?Campaign.companies(state)[Number(e.key)-1]?.id:String.fromCharCode(96+Number(e.key)),e.shiftKey);if(e.key.toLowerCase()==='f'){if(document.querySelector('.game').dataset.panel==='build'&&buildingTarget()?.type==='battery')$('battery-target').click();else $('fire-mission').click();}if(e.key.toLowerCase()==='a')$('attack-move').click();if(e.key.toLowerCase()==='h')$('hold').click();if(e.key.toLowerCase()==='m')$('move-order').click();if(e.key==='Escape'){if(activeMode()){cancelMode();feedback('Order cancelled. Selection kept.');}else{selection.clear();state.selected=null;collapseConsole(true);}updateUI();}});
   window.addEventListener('keyup',e=>{if(e.code==='Space')spaceHeld=false;});window.addEventListener('blur',()=>{spaceHeld=false;pointer=null;});
   document.addEventListener('visibilitychange',()=>{last=0;accumulator=0;});
+  network.onSessionEnded=()=>{networkInitialized=false;state.paused=true;paintNeeded=true;};
+  network.onSolo=()=>{networkInitialized=false;for(const id of ['pause','save-game','load-game','restart'])$(id).disabled=false;adopt(Campaign.create({terrainSeed:TerrainField.randomSeed()}));state.paused=true;$('network-menu').textContent='Play / Multiplayer';if(!$('campaign-setup').open)$('campaign-setup').showModal();};
+  network.onSnapshot=snapshot=>{
+    const first=!networkInitialized;const next=first?Campaign.create({terrainSeed:snapshot.terrainSeed}):state;
+    network.mergeSnapshot(next,snapshot);
+    if(first){networkInitialized=true;adopt(next);}else{for(const id of selection)if(!state.units.some(u=>u.id===id&&u.side==='blue'&&u.hp>0))selection.delete(id);scenery.filter(o=>o.factory).forEach(o=>{o.factory=state.regions.find(r=>r.factory.x===o.factory.x&&r.factory.y===o.factory.y)?.factory||o.factory;});paintNeeded=true;updateUI();}
+    if($('campaign-setup').open)$('campaign-setup').close();for(const id of ['pause','save-game','load-game','restart'])$(id).disabled=true;
+  };
+
   function advanceCamera(now){
     if(!cameraTween)return;
     paintNeeded=true;
@@ -388,7 +408,7 @@
     const elapsed=last?Math.min((now-last)/1000,.25):0;last=now;
     if(!document.hidden){
       accumulator+=elapsed;
-      while(accumulator>=.05){Campaign.step(state,.05);accumulator-=.05;}
+      while(accumulator>=.05){if(typeof window==='undefined'||!window.Multiplayer?.active)Campaign.step(state,.05);accumulator-=.05;}
       advanceCamera(now);
       if((!state.paused&&!state.winner)||cameraTween||paintNeeded){render(elapsed);paintNeeded=false;}
       updateFrameCounters(now,elapsed);
@@ -396,5 +416,6 @@
     requestAnimationFrame(frame);
   }
 
-  terrainBase();updateFront();makeFormationButtons();new ResizeObserver(entries=>{document.querySelector('.workspace').style.setProperty('--dock-height',entries[0].target.getBoundingClientRect().height+'px');}).observe(document.querySelector('.selection-dock'));new ResizeObserver(resize).observe(host);resize();updateUI();collapseConsole(true);$('campaign-setup').showModal();requestAnimationFrame(frame);
+
+  terrainBase();updateFront();makeFormationButtons();new ResizeObserver(entries=>{document.querySelector('.workspace').style.setProperty('--dock-height',entries[0].target.getBoundingClientRect().height+'px');}).observe(document.querySelector('.selection-dock'));new ResizeObserver(resize).observe(host);resize();updateUI();collapseConsole(true);requestAnimationFrame(frame);
 })();

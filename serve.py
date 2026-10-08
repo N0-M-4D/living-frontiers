@@ -9,10 +9,11 @@ FILES = {
     'index.html', 'styles.css', 'fog.js', 'projection.js', 'ground-detail.js',
     'simulation.js', 'geography.js', 'terrain-art.js', 'terrain.js', 'world.js',
     'territory.js', 'save-validation.js', 'campaign.js', 'models.js', 'game.js',
+    'multiplayer-client.js',
     'preview/visual-lab.html', 'preview/visual-lab.css', 'preview/visual-lab.js',
     'preview/model-yard.html', 'preview/model-yard.css', 'preview/model-yard.js',
     'docs/model-art-pass.md', 'docs/seeded-terrain.md', 'docs/visual-research.md',
-    'docs/security-reliability-audit.md',
+    'docs/security-reliability-audit.md', 'docs/online-play.md',
 }
 CSP = ("default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; "
        "img-src 'self' data:; connect-src 'none'; object-src 'none'; base-uri 'none'; "
