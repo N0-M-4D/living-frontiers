@@ -35,7 +35,7 @@
       }
       builds++;return {surface,x:minX,y:minY,w:surface.width/density,h:surface.height/density,bytes:surface.width*surface.height*4};
     }
-    function draw(ctx,corners,zoom=2,dpr=1){
+    function draw(ctx,corners,zoom=2,dpr=1,{moving=false}={}){
       if(zoom<1||!corners?.length||corners.some(p=>!Number.isFinite(p.x)||!Number.isFinite(p.y)))return false;
       const minX=Math.max(bounds.minX,Math.min(...corners.map(p=>p.x))-32),maxX=Math.min(bounds.maxX,Math.max(...corners.map(p=>p.x))+32);
       const minY=Math.max(bounds.minY,Math.min(...corners.map(p=>p.y))-32),maxY=Math.min(bounds.maxY,Math.max(...corners.map(p=>p.y))+32);
@@ -51,7 +51,12 @@
       for(const tile of wanted){
         let item=chunks.get(tile.key);
         if(!item){
-          if(built>=2){pending=true;continue;}
+          if(moving||built>=1){pending=true;
+            // Reuse the best existing resolution during camera movement; never bake intermediate zoom levels.
+            let fallback=null;for(const level of [16,12,8,6,4,3,2,1.5,1]){fallback=chunks.get(tile.x+','+tile.y+','+level);if(fallback)break;}
+            if(fallback)ctx.drawImage(fallback.surface,fallback.x,fallback.y,fallback.w,fallback.h);
+            continue;
+          }
           const reserve=Math.ceil(CHUNK_SIZE*1.7/s*density+4)*Math.ceil(CHUNK_SIZE*1.4/s*density+4)*4;
           for(const [key,old] of chunks){if(bytes+reserve<=MAX_BYTES&&chunks.size<MAX_CHUNKS)break;if(!protectedKeys.has(key)){bytes-=old.bytes;chunks.delete(key);}}
           if(bytes+reserve>MAX_BYTES||chunks.size>=MAX_CHUNKS)continue;

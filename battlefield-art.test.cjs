@@ -30,3 +30,12 @@ test('Battle effects are vision gated and capped; repeated frames allocate no ne
 test('Explosion phases separate the initial flash from dissipating smoke',()=>{
  assert.equal(FX.stages(0).flash,1);assert.equal(FX.stages(.5).flash,0);assert.ok(FX.stages(.5).smoke>0);for(const v of Object.values(FX.stages(1)))assert.ok(v<1e-10);
 });
+
+test('Camera movement never bakes terrain and reuses a cached zoom level',()=>{
+ const map=W.withTerrain(823901),project=(x,y)=>P.project(x,y,undefined,map),g=Ground.create(map,project,factory),ctx=context();
+ const corners=[{x:3000,y:3800},{x:3300,y:3800},{x:3000,y:4100},{x:3300,y:4100}];
+ assert.equal(g.draw(ctx,corners,2,1,{moving:true}),true);assert.equal(g.stats().builds,0);
+ for(let i=0;i<100&&g.draw(ctx,corners,2,1);i++);const built=g.stats().builds;ctx.draws=0;
+ g.draw(ctx,corners,7,1.5,{moving:true});assert.equal(g.stats().builds,built);assert.ok(ctx.draws>0,'cached terrain should stay visible during zoom');
+ g.draw(ctx,corners,7,1.5);assert.equal(g.stats().builds,built+1,'settled terrain refines one tile per frame');
+});
