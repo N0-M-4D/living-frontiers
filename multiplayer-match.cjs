@@ -40,7 +40,7 @@ function applyCommand(c,side,cmd){const fail=message=>({ok:false,message});if(![
  bombard:()=>ids.map(id=>F.bombard(c,id,cmd.buildingId?C.infrastructure(c,cmd.buildingId):C.region(c,cmd.regionId).factory)).join(' '),
  fireMission:()=>ids.map(id=>F.fireMission(c,id,cmd.point)).join(' '),
  factoryRepair:()=>F.repairFactory(c,C.region(c,cmd.regionId).factory)
- };return handlers[cmd.type]?.()??false;});}catch{return fail('Invalid command.');}
+ };return Object.hasOwn(handlers,cmd.type)?handlers[cmd.type]():false;});}catch{return fail('Invalid command.');}
  const accepted=typeof result==='string'?/^(infantry queued|mech queued|tank queued|artillery queued|Last order cancelled|Upgraded|Repair crews assigned|Repairs paused|Bombardment ordered|Strike fired|Fire mission launched|Engineers assigned)/.test(result):result!==false;
  return {ok:accepted,message:typeof result==='string'?result:result===false?'Order rejected.':'Order accepted.'};
 }

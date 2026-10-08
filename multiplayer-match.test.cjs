@@ -67,3 +67,8 @@ test('compact snapshots preserve fog and occupation with bounded quantization',(
  assert(snapshot.regions.every(r=>!Object.hasOwn(r,'polygon')&&!Object.hasOwn(r.factory,'x')));
  }
 });
+test('inherited command names are rejected without state mutation',()=>{
+ const c=M.createMatch({seed:23});const before=JSON.stringify([c.time,c.materiel,c.enemyFunds,c.fuel,c.enemyFuel,c.manpower,c.enemyManpower,c.units,c.buildings,c.bridges,c.shells,c.shots,c.autoRetreatSides]);
+ for(const side of ['blue','red'])for(const type of ['constructor','toString','__proto__','hasOwnProperty'])assert.equal(M.applyCommand(c,side,{type}).ok,false);
+ assert.equal(JSON.stringify([c.time,c.materiel,c.enemyFunds,c.fuel,c.enemyFuel,c.manpower,c.enemyManpower,c.units,c.buildings,c.bridges,c.shells,c.shots,c.autoRetreatSides]),before);
+});
