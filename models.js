@@ -29,13 +29,14 @@
     ['tank-store','Oil storage vessel','Props','Cylindrical tank, access hatch, bands and ladder.'],
     ['stack','Industrial chimney','Props','Tapered brick stack with a dark open flue.']
   ].map(([id,name,group,description])=>({id,name,group,description}));
-  const metal=['#83978a','#415d56','#627970'],stone=['#b6b6a0','#707e72','#919e8a'];
+  const metal=['#a1aba0','#4d6059','#75857b'],stone=['#c3bda4','#7c8173','#a1a58d'];
   const rubber=['#4d554c','#263831','#38483e'],wood=['#9b8862','#605c45','#7c7555'];
-  const earth=['#a6946b','#635d43','#827a53'],brick=['#a08a71','#645e50','#817560'];
-  const faction=side=>side==='red'?['#b69a7d','#6f5649','#907563']:side==='neutral'?['#a5a48b','#626b58','#838e73']:['#829c8d','#3e6058','#608477'];
+  const earth=['#a6946b','#635d43','#827a53'],brick=['#b58f75','#735d50','#957361'];
+  const faction=side=>side==='red'?['#b69a7d','#6f5649','#907563']:side==='neutral'?['#a5a48b','#626b58','#838e73']:['#9ba688','#4f6656','#778b70'];
   const accent=side=>side==='red'?'#edb099':side==='neutral'?'#e3d4a5':'#afe0d5';
   const sizes={infantry:[6,5,8],tank:[20,12,11],mech:[18,11,11],artillery:[28,18,14],battery:[90,70,18],trench:[220,48,8],barracks:[80,55,28],garage:[80,55,26],supply:[80,55,28],industry:[80,55,32],refinery:[80,55,52],hq:[115,65,45],house:[38,30,26],warehouse:[46,36,28],bridge:[130,23,28],tree:[26,24,42],pine:[24,24,46],crate:[17,13,12],sandbags:[40,25,6],'tank-store':[28,28,35],stack:[16,16,64]};
 
+  function blend(a,b,t){const channel=(color,i)=>parseInt(color.slice(i,i+2),16);return '#'+[1,3,5].map(i=>Math.round(channel(a,i)*(1-t)+channel(b,i)*t).toString(16).padStart(2,'0')).join('');}
   function createMesh(type,options={}){
     const faces=[],angle=options.angle||0,ca=Math.cos(angle),sa=Math.sin(angle),detail=options.detail!==false;
     const side=options.side||'blue',paint=faction(side),mark=accent(side),state=options.state||'intact';
@@ -49,7 +50,7 @@
       for(let i=0;i<points.length;i++){
         const j=(i+1)%points.length,dx=points[j][0]-points[i][0],dy=points[j][1]-points[i][1];
         const nx=dy*ca+dx*sa,ny=dy*sa-dx*ca;
-        if(nx+ny>-.001)face([low[i],low[j],high[j],high[i]],colors[Math.abs(nx)>Math.abs(ny)?2:1]);
+        if(nx+ny>-.001)face([low[i],low[j],high[j],high[i]],blend(colors[1],colors[2],Math.max(0,Math.min(1,.5+(nx-ny)/(Math.hypot(nx,ny)||1)*.5))));
       }
       face(high,colors[0]);
     }
@@ -137,7 +138,7 @@
     }else switch(type){
       case 'infantry': {
         const uniform=side==='red'?['#a69774','#675d46','#847859']:['#85946b','#485f44','#647853'];
-        const stride=options.pose==='march'?1:0;
+        const stride=options.pose==='march'?1:options.pose==='step'?-1:0;
         box(-.8,1+stride,0,1.5,2.2,1,rubber);box(.9,-.4-stride,0,1.5,2.2,1,rubber);
         box(-.8,.6+stride*.5,1,1.1,1.2,2.5,uniform);box(.9,-stride*.5,1,1.1,1.2,2.5,uniform);
         chamfer(0,0,3,3.3,2.2,2.9,uniform,0,.85);box(-.2,-1.35,3.6,2.5,1.2,2.2,wood);
@@ -157,6 +158,11 @@
         if(tank){const a=(options.turret||0)-(options.angle||0);chamfer(1,0,6.1,9,7.4,3.1,colors,a,.72);cylinder(0,0,9.2,1.5,.55,colors,10);beam([1,0,7.7],[1+Math.cos(a)*16,Math.sin(a)*16,8.2],1,colors[1]);const q=[1+Math.cos(a)*16,Math.sin(a)*16,8.2];box(q[0],q[1],q[2],2.1,1.5,1.1,colors,a);}
         else{box(4,0,7.2,4.3,7,2,colors);box(6.3,0,7.3,.4,5.8,1.3,rubber);cylinder(-2,0,7.6,1.8,.8,colors,10);for(const y of [-4.1,4.1])for(let x=-5;x<4;x+=3)box(x,y,5.6,1.5,.2,.7,rubber);}
         if(detail){for(let x=-7;x<=-3;x+=1.2)box(x,0,6.2, .4,5.6,.2,rubber);for(const y of [-2.3,2.3])box(w/2-.4,y,4.7,.5,1,.65,stone);crate(-6,0,tank?6.3:7.5,3.2,4,1.2);box(0,tank?3.65:4.05,4.3,3,.15,1,[mark,mark,mark]);if(tank){for(const y of [-4.6,4.6])for(let x=-8;x<=8;x+=2)box(x,y,4.95,.35,3.1,.1,rubber);cylinder(0,0,9.8,.8,.15,rubber,8);}}
+        if(detail&&!ruin){
+          beam([-7,-3,6],[-7,-3,14],.18,metal[1]);
+          for(const y of [-3.1,3.1]){box(-3,y,6.2,4,1.4,.5,earth);beam([4,y,6],[7,y,6],.35,metal[0]);}
+          if(tank){box(1,-.4,9.3,2.8,2.8,.3,metal);box(4,0,6.3,3.4,4,.08,earth);}
+        }
         if(ruin){box(3,0,9,5,4,.2,rubber);beam([-6,-1,6],[-3,2,10],.6,'#292f29');}
         break;
       }
@@ -190,7 +196,15 @@
           doorway(0,d/2+.35,type==='warehouse'?14:8,type==='warehouse'?15:12);
           if(type==='barracks'){box(0,d/2+4,0,13,7,1,stone);box(0,d/2+2,1,11,4,1,stone);flag(w*.43,d*.45,h*1.2);}
         }
-        if(detail){if(type!=='garage'&&type!=='supply')windows(0,d/2+.4,h*.4,w);for(const y of [-d*.28,d*.15])box(w/2+.25,y,h*.4,.4,6,6,rubber);if(type==='warehouse')for(let x=-w/2+3;x<w/2;x+=6)beam([x,0,h*.7+Math.max(h*.3,d*.38)],[x,d/2+2,h*.7],.3,stone[0]);}
+        if(detail){
+          box(0,d/2+.25,2,w,.7,2.2,earth);
+          for(const x of [-w/2+.8,w/2-.8])box(x,d/2+.25,3,1.2,.6,h*.65,stone);
+          if(type==='house'||type==='barracks'||type==='warehouse'){
+            const rise=Math.max(h*.3,d*.38);beam([-w/2-2,0,h*.7+rise],[w/2+2,0,h*.7+rise],1.2,brick[0]);
+            for(const x of [-w*.28,w*.28]){box(x,d/2+.8,h*.37,6.3,1,1,stone);box(x,d/2+.8,h*.63,6.3,.8,.7,stone);}
+            box(0,d/2+3,h*.48,12,6,.7,metal);for(const x of [-5,5])box(x,d/2+5,1,.7,.7,h*.48,wood);
+          }
+          if(type!=='garage'&&type!=='supply')windows(0,d/2+.4,h*.4,w);for(const y of [-d*.28,d*.15])box(w/2+.25,y,h*.4,.4,6,6,rubber);if(type==='warehouse')for(let x=-w/2+3;x<w/2;x+=6)beam([x,0,h*.7+Math.max(h*.3,d*.38)],[x,d/2+2,h*.7],.3,stone[0]);}
         if(damaged){box(w*.17,0,h*.9,w*.28,d*.26,.3,rubber);beam([w*.1,d/2+.8,3],[w*.25,d/2+.8,h*.6],1.4,'#3c443a');crate(w*.55,d*.35,0,6,6,3);}
         break;
       }
@@ -204,10 +218,17 @@
         if(detail&&!ruin)for(let x=-58;x<64;x+=13)box(x,0,2.3,6,.6,.05,earth);break;
       }
       case 'tree':case 'pine': {
-        const leaves=['#819764','#3c6147','#5f7d51'];
+        const leaves=['#9baa72','#3e6046','#698653'];
         cylinder(0,0,0,1.7,24,wood,6,.6);
-        if(type==='pine'){for(let i=0;i<4;i++)cylinder(0,0,12+i*7,12-i*2.3,14,leaves,7,.04);}
-        else{for(const [x,y,z,r] of [[-5,1,18,9],[6,-2,22,10],[1,6,25,9],[-4,-4,30,8],[1,0,35,6]]){beam([0,0,15],[x,y,z],1.1,wood[1]);cylinder(x,y,z,r,r*.7,leaves,7,.45);cylinder(x,y,z-r*.5,r*.6,r*.5,leaves,7,1.65);}}break;
+        if(type==='pine'){for(let i=0;i<5;i++)cylinder(i%2*.7,0,9+i*6,12-i*2.1,14,leaves,detail?11:7,.035);}
+        else for(const [x,y,z,r] of [[-5,1,20,9],[6,-2,24,10],[1,6,27,9],[-4,-4,31,8],[1,0,36,6]]){
+          beam([0,0,15],[x,y,z],1.1,wood[1]);const n=detail?10:6,rings=detail?4:2;
+          for(let j=0;j<rings;j++)for(let i=0;i<n;i++){
+            const a=i*TAU/n,b=(i+1)*TAU/n,lo=-Math.PI/2+j*Math.PI/rings,hi=lo+Math.PI/rings;
+            const point=(angle,lat)=>[x+Math.cos(angle)*Math.cos(lat)*r,y+Math.sin(angle)*Math.cos(lat)*r,z+Math.sin(lat)*r*.8];
+            face([point(a,lo),point(b,lo),point(b,hi),point(a,hi)],blend(leaves[1],leaves[0],Math.max(0,Math.min(1,.35+Math.sin((lo+hi)/2)*.38-Math.cos(a+angle+.6)*.2))));
+          }
+        }break;
       }
       case 'crate':crate(-4,-2,0);crate(5,3,0);crate(-4,-2,6);break;
       case 'sandbags':for(let i=0;i<7;i++){const a=Math.PI*.1+i*Math.PI*.8/6,x=Math.cos(a)*17,y=Math.sin(a)*11;bag(x,y,0,a+Math.PI/2);bag(x+1,y,2,a+Math.PI/2);}break;
@@ -216,11 +237,18 @@
       default:box(0,0,0,base[0],base[1],base[2],stone);
     }
     if(damaged){const w=base[0],d=base[1],h=base[2];box(w*.2,d*.48,Math.min(3,h*.3),w*.15,.3,h*.2,rubber);box(w*.4,d*.35,0,Math.max(2,w*.09),Math.max(2,d*.1),1.2,rubber,.4);}
-    const ordered=orderFaces(faces);
+    // Organic crowns need only painter depth; avoid quadratic intersection sorting for trees.
+    const depth=f=>f.points.reduce((n,p)=>n+p[0]+p[1]+p[2]*1.2,0)/f.points.length;
+    const ordered=type==='tree'||type==='pine'?faces.sort((a,b)=>depth(a)-depth(b)):orderFaces(faces);
     if(type!=='bridge'){
       const w=base[0]*.47,d=base[1]*.44,reach=base[2]*(ruin?.12:.38);
-      ordered.unshift({color:'#132c2530',points:[[-w,-d,0],[w,-d,0],[w+reach,d+reach*.55,0],[-w+reach,d+reach*.55,0]].map(p=>point(...p))});
+      ordered.unshift({color:'#172b2325',points:[[-w,-d,0],[w,-d,0],[w+reach,d+reach*.55,0],[-w+reach,d+reach*.55,0]].map(p=>point(...p))});
     }
+    if(type==='tree'||type==='pine'){
+      ordered.shift();const r=base[0]*.42;
+      ordered.unshift({color:'#23382525',points:Array.from({length:16},(_,i)=>point(Math.cos(i*TAU/16)*r+8,Math.sin(i*TAU/16)*r+12,0))});
+    }
+    if(type!=='bridge')ordered.unshift({color:'#172b2325',points:Array.from({length:12},(_,i)=>point(Math.cos(i*TAU/12)*base[0]*.45,Math.sin(i*TAU/12)*base[1]*.4,0))});
     return ordered;
   }
 

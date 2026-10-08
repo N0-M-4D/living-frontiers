@@ -6,14 +6,14 @@ import argparse
 
 ROOT = Path(__file__).resolve().parent
 FILES = {
-    'index.html', 'styles.css', 'fog.js', 'projection.js', 'ground-detail.js',
+    'index.html', 'styles.css', 'fog.js', 'projection.js', 'ground-detail.js','battlefield-fx.js',
     'simulation.js', 'geography.js', 'terrain-art.js', 'terrain.js', 'world.js',
     'territory.js', 'save-validation.js', 'campaign.js', 'models.js', 'game.js',
     'multiplayer-client.js','peer-session.js','peer-host-worker.js','multiplayer-match.js',
     'preview/visual-lab.html', 'preview/visual-lab.css', 'preview/visual-lab.js',
-    'preview/model-yard.html', 'preview/model-yard.css', 'preview/model-yard.js',
+    'preview/battlefield-range.html','preview/battlefield-range.css','preview/battlefield-range.js','preview/model-yard.html', 'preview/model-yard.css', 'preview/model-yard.js',
     'docs/model-art-pass.md', 'docs/seeded-terrain.md', 'docs/visual-research.md',
-    'docs/security-reliability-audit.md', 'docs/online-play.md',
+    'docs/security-reliability-audit.md', 'docs/online-play.md','docs/field-art-overhaul.md',
 }
 CSP = ("default-src 'self'; script-src 'self'; worker-src 'self'; style-src 'self' 'unsafe-inline'; "
        "img-src 'self' data:; connect-src 'none'; object-src 'none'; base-uri 'none'; "
