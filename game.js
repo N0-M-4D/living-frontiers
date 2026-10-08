@@ -379,6 +379,7 @@
   window.addEventListener('keyup',e=>{if(e.code==='Space')spaceHeld=false;});window.addEventListener('blur',()=>{spaceHeld=false;pointer=null;});
   document.addEventListener('visibilitychange',()=>{last=0;accumulator=0;});
   network.onSessionEnded=()=>{networkInitialized=false;state.paused=true;paintNeeded=true;};
+  network.onNotice=message=>feedback(message);
   network.onSolo=()=>{networkInitialized=false;for(const id of ['pause','save-game','load-game','restart'])$(id).disabled=false;adopt(Campaign.create({terrainSeed:TerrainField.randomSeed()}));state.paused=true;$('network-menu').textContent='Play / Multiplayer';if(!$('campaign-setup').open)$('campaign-setup').showModal();};
   network.onSnapshot=snapshot=>{
     const first=!networkInitialized;const next=first?Campaign.create({terrainSeed:snapshot.terrainSeed}):state;

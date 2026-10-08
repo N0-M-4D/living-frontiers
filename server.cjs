@@ -4,11 +4,11 @@ const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
 const {WebSocketServer, WebSocket} = require('ws');
-const simulation = require('./multiplayer-match.cjs');
-const FILES = new Set(['index.html','styles.css','fog.js','projection.js','ground-detail.js','simulation.js','geography.js','terrain-art.js','terrain.js','world.js','territory.js','save-validation.js','campaign.js','models.js','game.js','multiplayer-client.js','docs/online-play.md','preview/visual-lab.html','preview/visual-lab.css','preview/visual-lab.js','preview/model-yard.html','preview/model-yard.css','preview/model-yard.js']);
+const simulation = require('./multiplayer-match.js');
+const FILES = new Set(['index.html','styles.css','fog.js','projection.js','ground-detail.js','simulation.js','geography.js','terrain-art.js','terrain.js','world.js','territory.js','save-validation.js','campaign.js','models.js','game.js','multiplayer-client.js','peer-session.js','peer-host-worker.js','multiplayer-match.js','docs/online-play.md','preview/visual-lab.html','preview/visual-lab.css','preview/visual-lab.js','preview/model-yard.html','preview/model-yard.css','preview/model-yard.js']);
 for(const name of ['model-art-pass','seeded-terrain','visual-research','security-reliability-audit']) FILES.add(`docs/${name}.md`);
 const MIME = {'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8'};
-const CSP = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'";
+const CSP = "default-src 'self'; script-src 'self'; worker-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'";
 function createServer(options = {}) {
   const rooms = new Map();
   const maxRooms = options.maxRooms ?? 32;

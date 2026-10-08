@@ -1,6 +1,6 @@
 'use strict';
 const test=require('node:test'),assert=require('node:assert/strict');
-const M=require('./multiplayer-match.cjs'),C=require('./campaign.js');
+const M=require('./multiplayer-match.js'),C=require('./campaign.js');
 test('balanced opening, independent fog and private snapshots',()=>{
  const c=M.createMatch({seed:23});const blue=M.snapshotFor(c,'blue'),red=M.snapshotFor(c,'red');
  assert.equal(c.units.filter(u=>u.side==='blue').length,4);assert.equal(c.units.filter(u=>u.side==='red').length,4);

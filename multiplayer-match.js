@@ -1,5 +1,9 @@
+(function(root,factory){
+ const api=typeof module==='object'&&module.exports?factory(require('./campaign.js'),require('./simulation.js'),require('./territory.js'),require('./fog.js')):factory(root.Campaign,root.Frontiers,root.Territory,root.Fog);
+ if(typeof module==='object'&&module.exports)module.exports=api;else root.FrontierMatch=api;
+})(globalThis,function(C,F,T,Fog){
 'use strict';
-const C=require('./campaign.js'),F=require('./simulation.js'),T=require('./territory.js'),Fog=require('./fog.js');
+const encode=bytes=>typeof Buffer!=='undefined'?Buffer.from(bytes).toString('base64'):btoa(Array.from(bytes,b=>String.fromCharCode(b)).join(''));
 const other=side=>side==='blue'?'red':'blue';
 const clone=value=>JSON.parse(JSON.stringify(value));
 function createMatch({seed=1,mode='short'}={}){
@@ -51,8 +55,8 @@ function stepMatch(c,dt){if(c.winner)return;dt=F.clamp(Number.isFinite(dt)?dt:0,
  if(!c.winner&&c.time>=c.elapsedLimit){c.winner=c.score.blue===c.score.red?'draw':c.score.blue>c.score.red?'blue':'red';c.victoryReason='Campaign time expired';}refreshFog(c);
 }
 const pick=(obj,keys)=>Object.fromEntries(keys.filter(k=>obj[k]!==undefined).map(k=>[k,clone(obj[k])]));
-function packedBits(values){const bytes=Buffer.alloc(Math.ceil(values.length/8));values.forEach((value,i)=>{if(value)bytes[i>>3]|=1<<(i&7);});return bytes.toString('base64');}
-function packedOccupation(c,side,remap){const bytes=Buffer.alloc(c.territory.cells.length*2);c.territory.cells.forEach((cell,i)=>{const owner=remap(cell.owner),value=side==='blue'?cell.value:-cell.value;bytes[i*2]=(owner==='blue'?1:owner==='red'?2:0)|(cell.contested?16:0);bytes[i*2+1]=Math.round((value+1)*127.5);});return bytes.toString('base64');}
+function packedBits(values){const bytes=new Uint8Array(Math.ceil(values.length/8));values.forEach((value,i)=>{if(value)bytes[i>>3]|=1<<(i&7);});return encode(bytes);}
+function packedOccupation(c,side,remap){const bytes=new Uint8Array(c.territory.cells.length*2);c.territory.cells.forEach((cell,i)=>{const owner=remap(cell.owner),value=side==='blue'?cell.value:-cell.value;bytes[i*2]=(owner==='blue'?1:owner==='red'?2:0)|(cell.contested?16:0);bytes[i*2+1]=Math.round((value+1)*127.5);});return encode(bytes);}
 function snapshotFor(c,side){if(!['blue','red'].includes(side))throw Error('Invalid side');const remap=x=>x===side?'blue':x===other(side)?'red':x,seen=x=>Fog.visible({fog:c.fogs[side]},x.x,x.y),own=x=>x.side===side||x.owner===side;
  const result=pick(c,['time','terrainSeed','terrainVersion','mode','elapsedLimit','victoryReason']);Object.assign(result,{snapshotEncoding:1,multiplayer:true,paused:false,winner:remap(c.winner),faction:'union',materiel:side==='blue'?c.materiel:c.enemyFunds,fuel:side==='blue'?c.fuel:c.enemyFuel,manpower:side==='blue'?c.manpower:c.enemyManpower,autoRetreat:c.autoRetreatSides[side],depot:pick(C.region(c,side==='blue'?'westhaven':'eastwatch'),['x','y']),score:{blue:c.score[side],red:c.score[other(side)]},fog:{...pick(c.fogs[side],['size','minX','minY','cols','rows','revision','lastUpdate']),visible:packedBits(c.fogs[side].visible),explored:packedBits(c.fogs[side].explored)},events:[]});
  result.units=c.units.filter(u=>u.hp>0&&(own(u)||seen(u))).map(u=>{const v=pick(u,own(u)?['id','name','label','type','x','y','hp','maxHp','angle','turret','range','speed','damage','cooldown','order','path','targetId','moving','status','supply','fuel','supplied','home','commandQueue','repairTarget']:['id','name','label','type','x','y','hp','maxHp','angle','turret','moving']);v.side=remap(u.side);if(!own(u))v.status='Observed enemy';return v;});
@@ -61,4 +65,5 @@ function snapshotFor(c,side){if(!['blue','red'].includes(side))throw Error('Inva
  result.bridges=c.bridges.map(b=>({...pick(b,['id','index','name','x','y','hp','maxHp']),hp:own(b)||seen(b)?b.hp:b.maxHp,owner:remap(b.owner),repair:own(b)?b.repair:false}));
  result.occupation=packedOccupation(c,side,remap);for(const key of ['shots','shells','explosions','craters','wrecks'])result[key]=(c[key]||[]).filter(x=>seen(x)&&(!Number.isFinite(x.tx)||seen({x:x.tx,y:x.ty}))).map(x=>{const v=clone(x);if(v.side)v.side=remap(v.side);return v;});return result;
 }
-module.exports={createMatch,stepMatch,applyCommand,snapshotFor};
+return {createMatch,stepMatch,applyCommand,snapshotFor};
+});

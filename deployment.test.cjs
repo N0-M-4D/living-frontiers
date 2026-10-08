@@ -11,6 +11,11 @@ test('public build includes executable assets and excludes private server files'
  assert.match(html,/connect-src 'none'/);
  assert.doesNotMatch(html,/name="multiplayer-server"/);
  assert.ok(files.includes('multiplayer-client.js'));
+ for(const file of ['peer-session.js','peer-host-worker.js','multiplayer-match.js'])assert.ok(fs.existsSync(path.join(output,file)),file);
+ const worker=fs.readFileSync(path.join(output,'peer-host-worker.js'),'utf8');
+ for(const [,file] of worker.match(/importScripts\(([^)]+)\)/)[1].matchAll(/'([^']+)'/g))assert.ok(fs.existsSync(path.join(output,file)),file);
+ assert.match(html,/worker-src 'self'/);
+ assert.doesNotMatch(html,/\uFFFD/);
 });
 test('configured static multiplayer endpoint is secure and CSP permits only its origin',()=>{
  for(const bad of ['http://example.com/ws','ws://example.com/ws','wss://user:secret@example.com/ws','wss://example.com/ws?token=secret','wss://example.com/ws#token'])assert.throws(()=>serverURL(bad));

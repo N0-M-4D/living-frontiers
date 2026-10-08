@@ -1,7 +1,7 @@
 'use strict';
 const fs=require('node:fs'),path=require('node:path');
 const root=path.resolve(__dirname,'..'),out=path.join(root,'dist');
-const files=['index.html','styles.css','game.js','multiplayer-client.js','fog.js','projection.js','ground-detail.js','simulation.js','geography.js','terrain-art.js','terrain.js','world.js','territory.js','save-validation.js','campaign.js','models.js','preview/model-yard.html','preview/model-yard.css','preview/model-yard.js','preview/visual-lab.html','preview/visual-lab.css','preview/visual-lab.js','docs/model-art-pass.md','docs/visual-research.md','docs/seeded-terrain.md','docs/security-reliability-audit.md','docs/online-play.md'];
+const files=['index.html','styles.css','game.js','multiplayer-client.js','peer-session.js','peer-host-worker.js','multiplayer-match.js','fog.js','projection.js','ground-detail.js','simulation.js','geography.js','terrain-art.js','terrain.js','world.js','territory.js','save-validation.js','campaign.js','models.js','preview/model-yard.html','preview/model-yard.css','preview/model-yard.js','preview/visual-lab.html','preview/visual-lab.css','preview/visual-lab.js','docs/model-art-pass.md','docs/visual-research.md','docs/seeded-terrain.md','docs/security-reliability-audit.md','docs/online-play.md'];
 function serverURL(value){if(!value)return null;const url=new URL(value);if(url.protocol!=='wss:')throw Error('Public multiplayer endpoint must use wss://.');if(url.username||url.password||url.hash||url.search)throw Error('Use a plain server URL without credentials or query parameters.');return url;}
 function build(endpoint=process.env.MULTIPLAYER_SERVER_URL){
  const server=serverURL(endpoint);
@@ -12,13 +12,13 @@ function build(endpoint=process.env.MULTIPLAYER_SERVER_URL){
  let html=fs.readFileSync(path.join(out,'index.html'),'utf8');
  if(server)html=html.replace('</head>',`  <meta name="multiplayer-server" content="${server.href.replaceAll('&','&amp;').replaceAll('"','&quot;')}">\n</head>`);
  const connect=server?`'self' ${server.origin}`:"'none'";
- const policy=`default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src ${connect}; object-src 'none'; base-uri 'none'; form-action 'none'`;
+ const policy=`default-src 'self'; script-src 'self'; worker-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src ${connect}; object-src 'none'; base-uri 'none'; form-action 'none'`;
  // Pages does not offer arbitrary response headers; retain the supported CSP subset in HTML.
  html=html.replace('<meta charset="utf-8">',`<meta charset="utf-8">\n  <meta http-equiv="Content-Security-Policy" content="${policy}">\n  <meta name="referrer" content="no-referrer">`);
  fs.writeFileSync(path.join(out,'index.html'),html);
  fs.writeFileSync(path.join(out,'_headers'),`/*\n  Content-Security-Policy: ${policy}; frame-ancestors 'none'\n  X-Content-Type-Options: nosniff\n  Referrer-Policy: no-referrer\n  X-Frame-Options: DENY\n  Cache-Control: no-cache\n`);
  fs.writeFileSync(path.join(out,'.nojekyll'),'');
- console.log(`Public build: ${out}. ${server?'Multiplayer endpoint configured.':'Solo demo; multiplayer server not connected.'}`);
+ console.log(`Public build: ${out}. ${server?'Multiplayer endpoint configured.':'Solo and browser-peer play; dedicated server not connected.'}`);
  return out;
 }
 if(require.main===module)build();
